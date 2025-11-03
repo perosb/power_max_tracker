@@ -7,7 +7,6 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.exceptions import ConfigEntryNotReady
 from .const import DOMAIN, CONF_SOURCE_SENSOR, CONF_MONTHLY_RESET, CONF_NUM_MAX_VALUES, CONF_BINARY_SENSOR
 from .coordinator import PowerMaxCoordinator
-from .sensor import MaxPowerSensor, SourcePowerSensor  # Import sensor after coordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,7 +25,17 @@ async def async_setup(hass: HomeAssistant, config: dict):
                 if isinstance(coord, PowerMaxCoordinator):
                     await coord.async_update_max_values_from_midnight()
 
+        async def reset_max_values_service(call: ServiceCall) -> None:
+            """Service to reset max values to 0."""
+            _LOGGER.debug("Running reset_max_values_service")
+            for entry_id, coord in hass.data.get(DOMAIN, {}).items():
+                if isinstance(coord, PowerMaxCoordinator):
+                    await coord.async_reset_max_values_manually()
+
         hass.services.async_register(DOMAIN, "update_max_values", update_max_values_service)
+        hass.services.async_register(
+            DOMAIN, "reset_max_values", reset_max_values_service
+        )
         return True
 
     for conf in config[DOMAIN]:

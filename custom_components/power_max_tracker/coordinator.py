@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import calendar
 import logging
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.components.recorder import get_instance
@@ -64,7 +65,7 @@ class PowerMaxCoordinator:
             )
         )
 
-        # Monthly reset listener (daily at 00:00 to check for 1st of the month)
+        # Monthly update listener (daily at 00:02 to check for last day of the month)
         if self.monthly_reset:
             self._listeners.append(
                 async_track_time_change(
@@ -190,6 +191,16 @@ class PowerMaxCoordinator:
             # Force sensor update
             await self._update_entities("midnight update")
 
+    async def async_reset_max_values_manually(self):
+        """Manually reset max values to 0 (for service call)."""
+        _LOGGER.info(f"Performing manual reset of {self.num_max_values} max values")
+        self.max_values = [0.0] * self.num_max_values
+        self.hass.config_entries.async_update_entry(
+            entry=self.entry, data={**self.entry.data, "max_values": self.max_values}
+        )
+        # Force sensor update
+        await self._update_entities("manual reset")
+
     async def _update_entities(self, update_type: str):
         """Update all valid entities and log the process."""
         # Filter and clean invalid entities
@@ -203,9 +214,17 @@ class PowerMaxCoordinator:
         for entity in valid_entities:
             _LOGGER.debug(f"Updating entity {entity.entity_id} with unique_id {entity._attr_unique_id}")
             try:
-                self.hass.async_add_job(entity.async_write_ha_state)
+                write_method = entity.async_schedule_update_ha_state
+                if write_method is not None:
+                    write_method()
+                else:
+                    _LOGGER.error(
+                        f"async_schedule_update_ha_state is None for entity {entity.entity_id} with unique_id {entity._attr_unique_id}"
+                    )
             except Exception as e:
-                _LOGGER.error(f"Failed to schedule state update for entity {entity.entity_id} with unique_id {entity._attr_unique_id}: {e}")
+                _LOGGER.error(
+                    f"Failed to schedule state update for entity {entity.entity_id} with unique_id {entity._attr_unique_id}: {e}"
+                )
         if not valid_entities:
             _LOGGER.error(f"No valid entities found for {update_type} for {self.source_sensor}")
 
@@ -220,16 +239,62 @@ class PowerMaxCoordinator:
         return state.state == "on"  # Only update if sensor is True (on)
 
     async def _async_reset_monthly(self, now):
-        """Reset max values if it's the 1st of the month."""
-        if self.monthly_reset and now.day == 1:
-            _LOGGER.info(f"Performing monthly reset of {self.num_max_values} max values")
-            self.max_values = [0.0] * self.num_max_values
-            self.hass.config_entries.async_update_entry(
-                entry=self.entry,
-                data={**self.entry.data, "max_values": self.max_values}
-            )
-            # Force sensor update
-            await self._update_entities("monthly reset")
+        """Update max values to the max of the current month on the last day."""
+        last_day = calendar.monthrange(now.year, now.month)[1]
+        if self.monthly_reset and now.day == last_day:
+            _LOGGER.info("Updating max values to current month's max on last day of month")
+            # Calculate max from 1st of month to now
+            start_time = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            end_time = now
+            _LOGGER.debug(f"Calculating monthly max for {self.source_sensor_entity_id} from {start_time} to {end_time}")
+
+            # Calculate number of hours from start_time to end_time
+            hours = int((end_time - start_time).total_seconds() // 3600)
+            if hours == 0:
+                _LOGGER.debug("No hours to process for monthly update")
+                new_max_values = [0.0] * self.num_max_values
+            else:
+                new_max_values = self.max_values.copy()
+                for hour in range(hours):
+                    hour_start = start_time + timedelta(hours=hour)
+                    hour_end = hour_start + timedelta(hours=1)
+                    _LOGGER.debug(f"Querying stats for {self.source_sensor_entity_id} from {hour_start} to {hour_end}")
+                    stats = await get_instance(self.hass).async_add_executor_job(
+                        statistics_during_period,
+                        self.hass,
+                        hour_start,
+                        hour_end,
+                        [self.source_sensor_entity_id],
+                        "hour",
+                        None,
+                        {"mean"},
+                    )
+
+                    if self.source_sensor_entity_id in stats and stats[self.source_sensor_entity_id] and stats[self.source_sensor_entity_id][0]["mean"] is not None:
+                        hourly_avg_watts = stats[self.source_sensor_entity_id][0]["mean"]
+                        if hourly_avg_watts >= 0:
+                            hourly_avg_kw = hourly_avg_watts / 1000.0  # Convert watts to kW
+                            _LOGGER.debug(f"Hourly average power for {hour_start} to {hour_end}: {hourly_avg_kw} kW (from {hourly_avg_watts} W)")
+                            if self._can_update_max_values():
+                                new_max_values = sorted(new_max_values + [hourly_avg_kw], reverse=True)[:self.num_max_values]
+                            else:
+                                _LOGGER.debug("Skipping max values update due to binary sensor state")
+                        else:
+                            _LOGGER.debug(f"Skipping negative hourly average power: {hourly_avg_watts} W")
+                    else:
+                        _LOGGER.warning(f"No mean statistics found for {self.source_sensor_entity_id} from {hour_start} to {hour_end}. Stats: {stats}")
+
+            # Update max values if changed
+            if new_max_values != self.max_values:
+                self.max_values = new_max_values
+                self.hass.config_entries.async_update_entry(
+                    entry=self.entry,
+                    data={**self.entry.data, "max_values": self.max_values}
+                )
+                # Force sensor update
+                await self._update_entities("monthly update")
+            else:
+                _LOGGER.debug("No change in max values for monthly update")
 
     def async_unload(self):
         """Unload listeners."""
