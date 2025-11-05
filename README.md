@@ -6,7 +6,7 @@ The **Power Max Tracker** integration for Home Assistant tracks the maximum hour
 
 ## Features
 - **Max Power Sensors**: Creates `num_max_values` sensors (e.g., `sensor.max_hourly_average_power_1_<entry_id>`, `sensor.max_hourly_average_power_2_<entry_id>`) showing the top hourly average power values in kW, rounded to 2 decimal places.
-- **Average Max Power Sensor**: Creates a sensor (e.g., `sensor.average_max_hourly_average_power_<entry_id>`) showing the average of all max hourly average power values in kW.
+- **Average Max Power Sensor**: Creates a sensor (e.g., `sensor.average_max_hourly_average_power_<entry_id>`) showing the average of all max hourly average power values in kW, with an attribute `previous_month_average` for the previous month's average.
 - **Source Power Sensor**: Creates a sensor (e.g., `sensor.power_max_source_<entry_id>`) that tracks the source sensor's state in watts, setting to `0` for negative values or when the binary sensor is off/unavailable.
 - **Hourly Average Power Sensor**: Creates a sensor (e.g., `sensor.hourly_average_power_<entry_id>`) that calculates the average power in kW so far in the current hour based on the source sensor's power, gated by the binary sensor, with periodic updates to account for 0W periods.
 - **Hourly Updates**: Updates `max_values` at 1 minute past each hour using hourly average statistics from the source sensor.
@@ -76,7 +76,7 @@ power_max_tracker:
 ## Usage
 - **Entities Created**:
   - `sensor.max_hourly_average_power_<index>_<entry_id>`: Top `num_max_values` hourly average power values in kW (e.g., `sensor.max_hourly_average_power_1_01K6ABFNPK61HBVAN855WBHXBG`).
-  - `sensor.average_max_hourly_average_power_<entry_id>`: Average of all max hourly average power values in kW.
+  - `sensor.average_max_hourly_average_power_<entry_id>`: Average of all max hourly average power values in kW (includes `previous_month_average` attribute).
   - `sensor.power_max_source_<entry_id>`: Tracks the source sensor in watts, `0` if negative or binary sensor is off/unavailable.
   - `sensor.hourly_average_power_<entry_id>`: Average power in kW so far in the current hour, with periodic updates for 0W periods.
 - **Service**: Call `power_max_tracker.update_max_values` via Developer Tools > Services to recalculate max values from midnight.

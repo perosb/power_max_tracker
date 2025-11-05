@@ -101,6 +101,15 @@ class AverageMaxPowerSensor(SensorEntity):
             return round(sum(max_values) / len(max_values), 2)
         return 0.0
 
+    @property
+    def extra_state_attributes(self):
+        """Return extra attributes."""
+        prev_values = self._coordinator.previous_month_max_values
+        prev_avg = round(sum(prev_values) / len(prev_values), 2) if prev_values else 0.0
+        return {
+            "previous_month_average": prev_avg
+        }
+
 class SourcePowerSensor(GatedSensorEntity):
     """Sensor that tracks the source sensor state, gated by binary sensor."""
 

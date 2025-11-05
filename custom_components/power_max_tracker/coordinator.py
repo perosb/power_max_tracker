@@ -23,6 +23,7 @@ class PowerMaxCoordinator:
         self.max_values = entry.data.get("max_values", [0.0] * self.num_max_values)
         if len(self.max_values) != self.num_max_values:
             self.max_values = [0.0] * self.num_max_values
+        self.previous_month_max_values = entry.data.get("previous_month_max_values", [])
         self.entities = []  # Store sensor entities
         self._listeners = []
 
@@ -319,10 +320,16 @@ class PowerMaxCoordinator:
             _LOGGER.info(
                 f"Performing monthly reset of {self.num_max_values} max values"
             )
+            # Store current max values as previous month
+            self.previous_month_max_values = self.max_values.copy()
             self.max_values = [0.0] * self.num_max_values
             self.hass.config_entries.async_update_entry(
                 entry=self.entry,
-                data={**self.entry.data, "max_values": self.max_values},
+                data={
+                    **self.entry.data,
+                    "max_values": self.max_values,
+                    "previous_month_max_values": self.previous_month_max_values,
+                },
             )
             # Force sensor update
             await self._update_entities("monthly reset")
