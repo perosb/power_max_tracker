@@ -28,14 +28,22 @@ class PowerMaxCoordinator:
 
     def add_entity(self, entity):
         """Add a sensor entity to the coordinator."""
-        if (entity is not None and
-            hasattr(entity, '_attr_unique_id') and
-            hasattr(entity, 'entity_id') and
-            hasattr(entity, 'async_write_ha_state') and
-            callable(getattr(entity, 'async_write_ha_state', None)) and
-            (entity._attr_unique_id.endswith("_source") or
-             entity._attr_unique_id.endswith("_hourly_energy") or
-             any(entity._attr_unique_id.endswith(f"_max_values_{i+1}") for i in range(self.num_max_values)))):
+        if (
+            entity is not None
+            and hasattr(entity, "_attr_unique_id")
+            and hasattr(entity, "entity_id")
+            and hasattr(entity, "async_write_ha_state")
+            and callable(getattr(entity, "async_write_ha_state", None))
+            and (
+                entity._attr_unique_id.endswith("_source")
+                or entity._attr_unique_id.endswith("_hourly_average_power")
+                or entity._attr_unique_id.endswith("_average_max")
+                or any(
+                    entity._attr_unique_id.endswith(f"_max_values_{i + 1}")
+                    for i in range(self.num_max_values)
+                )
+            )
+        ):
             self.entities.append(entity)
             _LOGGER.debug(f"Added entity {entity.entity_id} with unique_id {entity._attr_unique_id}")
             if entity._attr_unique_id.endswith("_source"):
@@ -78,14 +86,22 @@ class PowerMaxCoordinator:
 
     def _is_valid_entity(self, entity):
         """Check if an entity is valid for state updates."""
-        return (entity is not None and
-                hasattr(entity, '_attr_unique_id') and
-                hasattr(entity, 'entity_id') and
-                hasattr(entity, 'async_write_ha_state') and
-                callable(getattr(entity, 'async_write_ha_state', None)) and
-                (entity._attr_unique_id.endswith("_source") or
-                 entity._attr_unique_id.endswith("_hourly_energy") or
-                 any(entity._attr_unique_id.endswith(f"_max_values_{i+1}") for i in range(self.num_max_values))))
+        return (
+            entity is not None
+            and hasattr(entity, "_attr_unique_id")
+            and hasattr(entity, "entity_id")
+            and hasattr(entity, "async_write_ha_state")
+            and callable(getattr(entity, "async_write_ha_state", None))
+            and (
+                entity._attr_unique_id.endswith("_source")
+                or entity._attr_unique_id.endswith("_hourly_average_power")
+                or entity._attr_unique_id.endswith("_average_max")
+                or any(
+                    entity._attr_unique_id.endswith(f"_max_values_{i + 1}")
+                    for i in range(self.num_max_values)
+                )
+            )
+        )
 
     async def _async_update_hourly(self, now):
         """Calculate hourly average power in kW and update max values if binary sensor allows."""
