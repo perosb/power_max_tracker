@@ -7,6 +7,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.exceptions import ConfigEntryNotReady
 from .const import DOMAIN, CONF_SOURCE_SENSOR, CONF_MONTHLY_RESET, CONF_NUM_MAX_VALUES, CONF_BINARY_SENSOR
 from .coordinator import PowerMaxCoordinator
+from . import sensor  # noqa: F401
 
 _LOGGER = logging.getLogger(__name__)
 

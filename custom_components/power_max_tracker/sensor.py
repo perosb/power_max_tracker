@@ -7,7 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_change
 from homeassistant.util import dt as dt_util
-from homeassistant.helpers.storage import async_get_store
+from homeassistant.helpers.storage import Store
 from .const import DOMAIN, CONF_NUM_MAX_VALUES, CONF_SOURCE_SENSOR, CONF_BINARY_SENSOR
 from .coordinator import PowerMaxCoordinator
 
@@ -219,8 +219,8 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
     async def async_added_to_hass(self):
         """Handle entity added to hass."""
         # Get storage for this sensor
-        self._store = async_get_store(
-            self.hass, "power_max_tracker", f"{self._entry.entry_id}_hourly_sensor"
+        self._store = Store(
+            self.hass, 1, f"power_max_tracker_{self._entry.entry_id}_hourly_sensor"
         )
         # Load persisted state
         stored_data = await self._store.async_load()
