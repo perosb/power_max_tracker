@@ -42,6 +42,8 @@ power_max_tracker:
     monthly_reset: true
 ```
 
+**Note:** YAML entries are imported as config entries when Home Assistant restarts. Edit `configuration.yaml` and restart Home Assistant (or reload YAML configuration) to apply changes made outside the UI.
+
 ### Configuration Options
 - `source_sensor` (required): The power sensor to track (e.g., `sensor.power_sensor`), must provide watts (W).
 - `num_max_values` (optional, default: 2): Number of max power sensors (1–10).
