@@ -1,5 +1,7 @@
 """Power Max Tracker integration."""
 import logging
+import voluptuous as vol
+from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.const import Platform
@@ -13,56 +15,68 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.SENSOR]
 
-CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+CONFIG_SCHEMA = vol.Schema(
+    {
+        DOMAIN: vol.All(
+            cv.ensure_list,
+            [
+                vol.Schema(
+                    {
+                        vol.Required(CONF_SOURCE_SENSOR): cv.entity_id,
+                        vol.Optional(CONF_NUM_MAX_VALUES, default=2): vol.All(
+                            vol.Coerce(int), vol.Range(min=1, max=10)
+                        ),
+                        vol.Optional(CONF_MONTHLY_RESET, default=False): cv.boolean,
+                        vol.Optional(CONF_BINARY_SENSOR): cv.entity_id,
+                    }
+                )
+            ],
+        )
+    },
+    extra=vol.ALLOW_EXTRA,
+)
 
 async def async_setup(hass: HomeAssistant, config: dict):
     """Set up the Power Max Tracker integration from YAML."""
-    if DOMAIN not in config:
-        # Register service globally
-        async def update_max_values_service(call: ServiceCall) -> None:
-            """Service to update max values from midnight."""
-            _LOGGER.debug("Running update_max_values_service")
-            for entry_id, coord in hass.data.get(DOMAIN, {}).items():
-                if isinstance(coord, PowerMaxCoordinator):
-                    await coord.async_update_max_values_from_midnight()
+    async def update_max_values_service(call: ServiceCall) -> None:
+        """Service to update max values from midnight."""
+        _LOGGER.debug("Running update_max_values_service")
+        for coord in hass.data.get(DOMAIN, {}).values():
+            if isinstance(coord, PowerMaxCoordinator):
+                await coord.async_update_max_values_from_midnight()
 
-        async def reset_max_values_service(call: ServiceCall) -> None:
-            """Service to reset max values to 0."""
-            _LOGGER.debug("Running reset_max_values_service")
-            for entry_id, coord in hass.data.get(DOMAIN, {}).items():
-                if isinstance(coord, PowerMaxCoordinator):
-                    await coord.async_reset_max_values_manually()
+    async def reset_max_values_service(call: ServiceCall) -> None:
+        """Service to reset max values to 0."""
+        _LOGGER.debug("Running reset_max_values_service")
+        for coord in hass.data.get(DOMAIN, {}).values():
+            if isinstance(coord, PowerMaxCoordinator):
+                await coord.async_reset_max_values_manually()
 
+    if not hass.services.has_service(DOMAIN, "update_max_values"):
         hass.services.async_register(DOMAIN, "update_max_values", update_max_values_service)
-        hass.services.async_register(
-            DOMAIN, "reset_max_values", reset_max_values_service
-        )
+    if not hass.services.has_service(DOMAIN, "reset_max_values"):
+        hass.services.async_register(DOMAIN, "reset_max_values", reset_max_values_service)
+
+    if DOMAIN not in config:
         return True
 
     for conf in config[DOMAIN]:
-        # Validate configuration
-        if not isinstance(conf.get(CONF_NUM_MAX_VALUES, 2), int) or not (1 <= conf.get(CONF_NUM_MAX_VALUES, 2) <= 10):
+        num_max_values = conf.get(CONF_NUM_MAX_VALUES, 2)
+        if not isinstance(num_max_values, int) or not (1 <= num_max_values <= 10):
             _LOGGER.error("num_max_values must be an integer between 1 and 10")
             continue
 
-        # Create a config entry programmatically
         entry_data = {
             CONF_SOURCE_SENSOR: conf.get(CONF_SOURCE_SENSOR),
-            CONF_NUM_MAX_VALUES: conf.get(CONF_NUM_MAX_VALUES, 2),
+            CONF_NUM_MAX_VALUES: num_max_values,
             CONF_MONTHLY_RESET: conf.get(CONF_MONTHLY_RESET, False),
             CONF_BINARY_SENSOR: conf.get(CONF_BINARY_SENSOR),
-            "max_values": [0.0] * conf.get(CONF_NUM_MAX_VALUES, 2)
         }
         hass.async_create_task(
-            hass.config_entries.async_add(
-                ConfigEntry(
-                    version=1,
-                    domain=DOMAIN,
-                    title=f"Power Max Tracker ({conf.get(CONF_SOURCE_SENSOR, 'unknown').split('.')[-1]})",
-                    data=entry_data,
-                    source="yaml",
-                    options={},
-                )
+            hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={"source": config_entries.SOURCE_IMPORT},
+                data=entry_data,
             )
         )
 
