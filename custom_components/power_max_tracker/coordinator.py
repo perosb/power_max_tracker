@@ -5,7 +5,17 @@ from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.statistics import statistics_during_period
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
-from .const import DOMAIN, CONF_SOURCE_SENSOR, CONF_MONTHLY_RESET, CONF_NUM_MAX_VALUES, CONF_BINARY_SENSOR
+from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
+from .const import (
+    CONF_SOURCE_SENSOR,
+    CONF_MONTHLY_RESET,
+    CONF_NUM_MAX_VALUES,
+    CONF_BINARY_SENSOR,
+    MAX_VALUES_STORAGE_KEY,
+    TIMESTAMPS_STORAGE_KEY,
+    PREVIOUS_MONTH_STORAGE_KEY,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,7 +33,16 @@ class PowerMaxCoordinator:
         self.max_values = entry.data.get("max_values", [0.0] * self.num_max_values)
         if len(self.max_values) != self.num_max_values:
             self.max_values = [0.0] * self.num_max_values
+        self.max_values_timestamps = entry.data.get(
+            "max_values_timestamps", [None] * self.num_max_values
+        )
+        if len(self.max_values_timestamps) != self.num_max_values:
+            self.max_values_timestamps = [None] * self.num_max_values
         self.previous_month_max_values = entry.data.get("previous_month_max_values", [])
+        # Initialize storage for max values data
+        self._max_values_store = Store(
+            self.hass, 1, f"power_max_tracker_{entry.entry_id}_max_values"
+        )
         self.entities = []  # Store sensor entities
         self._listeners = []
 
@@ -58,6 +77,22 @@ class PowerMaxCoordinator:
 
     async def async_setup(self):
         """Set up hourly update and monthly reset."""
+        # Load stored max values data
+        stored_data = await self._max_values_store.async_load()
+        if stored_data:
+            self.max_values = stored_data.get(MAX_VALUES_STORAGE_KEY, self.max_values)
+            # Convert timestamp strings back to datetime objects
+            stored_timestamps = stored_data.get(
+                TIMESTAMPS_STORAGE_KEY, self.max_values_timestamps
+            )
+            self.max_values_timestamps = [
+                dt_util.parse_datetime(ts) if isinstance(ts, str) and ts else ts
+                for ts in stored_timestamps
+            ]
+            self.previous_month_max_values = stored_data.get(
+                PREVIOUS_MONTH_STORAGE_KEY, self.previous_month_max_values
+            )
+
         # Clean invalid entities
         self.entities = [e for e in self.entities if self._is_valid_entity(e)]
         _LOGGER.debug(f"After setup cleanup, {len(self.entities)} valid entities for {self.source_sensor}")
@@ -84,6 +119,15 @@ class PowerMaxCoordinator:
                     second=0,
                 )
             )
+
+    async def _save_max_values_data(self):
+        """Save max values data to storage."""
+        data = {
+            "max_values": self.max_values,
+            "max_values_timestamps": self.max_values_timestamps,
+            "previous_month_max_values": self.previous_month_max_values,
+        }
+        await self._max_values_store.async_save(data)
 
     def _is_valid_entity(self, entity):
         """Check if an entity is valid for state updates."""
@@ -135,12 +179,31 @@ class PowerMaxCoordinator:
                 if self._can_update_max_values():
                     # Insert new value into sorted max_values list
                     new_max_values = sorted(self.max_values + [hourly_avg_kw], reverse=True)[:self.num_max_values]
+                    new_timestamps = self.max_values_timestamps.copy()
+
+                    # Find where the new value was inserted
+                    old_max_values = self.max_values
+                    if hourly_avg_kw not in old_max_values or old_max_values.count(
+                        hourly_avg_kw
+                    ) < new_max_values.count(hourly_avg_kw):
+                        # New value was added, update timestamps accordingly
+                        insert_index = 0
+                        for i, val in enumerate(new_max_values):
+                            if val == hourly_avg_kw and (
+                                i >= len(old_max_values)
+                                or old_max_values[i] != hourly_avg_kw
+                            ):
+                                insert_index = i
+                                break
+
+                        # Shift timestamps and add new timestamp
+                        new_timestamps.insert(insert_index, now)
+                        new_timestamps = new_timestamps[: self.num_max_values]
+
                     if new_max_values != self.max_values:
                         self.max_values = new_max_values
-                        self.hass.config_entries.async_update_entry(
-                            entry=self.entry,
-                            data={**self.entry.data, "max_values": self.max_values}
-                        )
+                        self.max_values_timestamps = new_timestamps
+                        await self._save_max_values_data()
                         # Force sensor update
                         await self._update_entities("hourly update")
                 else:
@@ -168,6 +231,7 @@ class PowerMaxCoordinator:
             return
 
         new_max_values = self.max_values.copy()
+        new_timestamps = self.max_values_timestamps.copy()
         for hour in range(hours):
             hour_start = start_time + timedelta(hours=hour)
             hour_end = hour_start + timedelta(hours=1)
@@ -189,7 +253,24 @@ class PowerMaxCoordinator:
                     hourly_avg_kw = hourly_avg_watts / 1000.0  # Convert watts to kW
                     _LOGGER.debug(f"Hourly average power for {hour_start} to {hour_end}: {hourly_avg_kw} kW (from {hourly_avg_watts} W)")
                     if self._can_update_max_values():
+                        old_max_values = new_max_values
                         new_max_values = sorted(new_max_values + [hourly_avg_kw], reverse=True)[:self.num_max_values]
+
+                        # Update timestamps if value was added
+                        if hourly_avg_kw not in old_max_values or old_max_values.count(
+                            hourly_avg_kw
+                        ) < new_max_values.count(hourly_avg_kw):
+                            insert_index = 0
+                            for i, val in enumerate(new_max_values):
+                                if val == hourly_avg_kw and (
+                                    i >= len(old_max_values)
+                                    or old_max_values[i] != hourly_avg_kw
+                                ):
+                                    insert_index = i
+                                    break
+
+                            new_timestamps.insert(insert_index, hour_end)
+                            new_timestamps = new_timestamps[: self.num_max_values]
                     else:
                         _LOGGER.debug("Skipping max values update due to binary sensor state")
                 else:
@@ -200,10 +281,8 @@ class PowerMaxCoordinator:
         # Update max values if changed
         if new_max_values != self.max_values:
             self.max_values = new_max_values
-            self.hass.config_entries.async_update_entry(
-                entry=self.entry,
-                data={**self.entry.data, "max_values": self.max_values}
-            )
+            self.max_values_timestamps = new_timestamps
+            await self._save_max_values_data()
             # Force sensor update
             await self._update_entities("midnight update")
 
@@ -222,8 +301,10 @@ class PowerMaxCoordinator:
         if hours == 0:
             _LOGGER.debug("No hours to process for monthly update")
             new_max_values = [0.0] * self.num_max_values
+            new_timestamps = [None] * self.num_max_values
         else:
             new_max_values = [0.0] * self.num_max_values  # Start fresh for the month
+            new_timestamps = [None] * self.num_max_values
             for hour in range(hours):
                 hour_start = start_time + timedelta(hours=hour)
                 hour_end = hour_start + timedelta(hours=1)
@@ -253,9 +334,28 @@ class PowerMaxCoordinator:
                             f"Hourly average power for {hour_start} to {hour_end}: {hourly_avg_kw} kW (from {hourly_avg_watts} W)"
                         )
                         if self._can_update_max_values():
+                            old_max_values = new_max_values
                             new_max_values = sorted(
                                 new_max_values + [hourly_avg_kw], reverse=True
                             )[: self.num_max_values]
+
+                            # Update timestamps if value was added
+                            if (
+                                hourly_avg_kw not in old_max_values
+                                or old_max_values.count(hourly_avg_kw)
+                                < new_max_values.count(hourly_avg_kw)
+                            ):
+                                insert_index = 0
+                                for i, val in enumerate(new_max_values):
+                                    if val == hourly_avg_kw and (
+                                        i >= len(old_max_values)
+                                        or old_max_values[i] != hourly_avg_kw
+                                    ):
+                                        insert_index = i
+                                        break
+
+                                new_timestamps.insert(insert_index, hour_end)
+                                new_timestamps = new_timestamps[: self.num_max_values]
                         else:
                             _LOGGER.debug(
                                 "Skipping max values update due to binary sensor state"
@@ -271,9 +371,8 @@ class PowerMaxCoordinator:
 
         # Update max values
         self.max_values = new_max_values
-        self.hass.config_entries.async_update_entry(
-            entry=self.entry, data={**self.entry.data, "max_values": self.max_values}
-        )
+        self.max_values_timestamps = new_timestamps
+        await self._save_max_values_data()
         # Force sensor update
         await self._update_entities("manual monthly update")
 
@@ -323,14 +422,8 @@ class PowerMaxCoordinator:
             # Store current max values as previous month
             self.previous_month_max_values = self.max_values.copy()
             self.max_values = [0.0] * self.num_max_values
-            self.hass.config_entries.async_update_entry(
-                entry=self.entry,
-                data={
-                    **self.entry.data,
-                    "max_values": self.max_values,
-                    "previous_month_max_values": self.previous_month_max_values,
-                },
-            )
+            self.max_values_timestamps = [None] * self.num_max_values
+            await self._save_max_values_data()
             # Force sensor update
             await self._update_entities("monthly reset")
 
