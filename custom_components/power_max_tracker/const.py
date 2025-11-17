@@ -4,7 +4,13 @@ CONF_MONTHLY_RESET = "monthly_reset"
 CONF_NUM_MAX_VALUES = "num_max_values"
 CONF_BINARY_SENSOR = "binary_sensor"
 
+# Constants for calculations
+SECONDS_PER_HOUR = 3600
+WATTS_TO_KILOWATTS = 1000.0
+KILOWATT_HOURS_PER_WATT_HOUR = 1 / WATTS_TO_KILOWATTS
+
 # Storage keys
+STORAGE_VERSION = 1
 MAX_VALUES_STORAGE_KEY = "max_values"
 TIMESTAMPS_STORAGE_KEY = "max_values_timestamps"
 PREVIOUS_MONTH_STORAGE_KEY = "previous_month_max_values"

@@ -12,12 +12,16 @@ from .const import (
     CONF_MONTHLY_RESET,
     CONF_NUM_MAX_VALUES,
     CONF_BINARY_SENSOR,
+    SECONDS_PER_HOUR,
+    WATTS_TO_KILOWATTS,
+    STORAGE_VERSION,
     MAX_VALUES_STORAGE_KEY,
     TIMESTAMPS_STORAGE_KEY,
     PREVIOUS_MONTH_STORAGE_KEY,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class PowerMaxCoordinator:
     """Coordinator for updating max hourly average power values in kW."""
@@ -41,7 +45,7 @@ class PowerMaxCoordinator:
         self.previous_month_max_values = entry.data.get("previous_month_max_values", [])
         # Initialize storage for max values data
         self._max_values_store = Store(
-            self.hass, 1, f"power_max_tracker_{entry.entry_id}_max_values"
+            self.hass, STORAGE_VERSION, f"power_max_tracker_{entry.entry_id}_max_values"
         )
         self.entities = []  # Store sensor entities
         self._listeners = []
@@ -65,15 +69,21 @@ class PowerMaxCoordinator:
             )
         ):
             self.entities.append(entity)
-            _LOGGER.debug(f"Added entity {entity.entity_id} with unique_id {entity._attr_unique_id}")
+            _LOGGER.debug(
+                f"Added entity {entity.entity_id} with unique_id {entity._attr_unique_id}"
+            )
             if entity._attr_unique_id.endswith("_source"):
                 self.source_sensor_entity_id = entity.entity_id
-                _LOGGER.debug(f"Set source_sensor_entity_id to {self.source_sensor_entity_id}")
+                _LOGGER.debug(
+                    f"Set source_sensor_entity_id to {self.source_sensor_entity_id}"
+                )
         else:
-            _LOGGER.error(f"Failed to add entity: {entity}, has_unique_id={hasattr(entity, '_attr_unique_id')}, "
-                         f"has_entity_id={hasattr(entity, 'entity_id')}, "
-                         f"has_async_write={hasattr(entity, 'async_write_ha_state')}, "
-                         f"is_callable={callable(getattr(entity, 'async_write_ha_state', None)) if entity else False}")
+            _LOGGER.error(
+                f"Failed to add entity: {entity}, has_unique_id={hasattr(entity, '_attr_unique_id')}, "
+                f"has_entity_id={hasattr(entity, 'entity_id')}, "
+                f"has_async_write={hasattr(entity, 'async_write_ha_state')}, "
+                f"is_callable={callable(getattr(entity, 'async_write_ha_state', None)) if entity else False}"
+            )
 
     async def async_setup(self):
         """Set up hourly update and monthly reset."""
@@ -95,7 +105,9 @@ class PowerMaxCoordinator:
 
         # Clean invalid entities
         self.entities = [e for e in self.entities if self._is_valid_entity(e)]
-        _LOGGER.debug(f"After setup cleanup, {len(self.entities)} valid entities for {self.source_sensor}")
+        _LOGGER.debug(
+            f"After setup cleanup, {len(self.entities)} valid entities for {self.source_sensor}"
+        )
 
         # Hourly update listener (for max values)
         self._listeners.append(
@@ -123,9 +135,9 @@ class PowerMaxCoordinator:
     async def _save_max_values_data(self):
         """Save max values data to storage."""
         data = {
-            "max_values": self.max_values,
-            "max_values_timestamps": self.max_values_timestamps,
-            "previous_month_max_values": self.previous_month_max_values,
+            MAX_VALUES_STORAGE_KEY: self.max_values,
+            TIMESTAMPS_STORAGE_KEY: self.max_values_timestamps,
+            PREVIOUS_MONTH_STORAGE_KEY: self.previous_month_max_values,
         }
         await self._max_values_store.async_save(data)
 
@@ -151,13 +163,17 @@ class PowerMaxCoordinator:
     async def _async_update_hourly(self, now):
         """Calculate hourly average power in kW and update max values if binary sensor allows."""
         if not self.source_sensor_entity_id:
-            _LOGGER.debug(f"Cannot update hourly stats: source_sensor_entity_id not set for {self.source_sensor}")
+            _LOGGER.debug(
+                f"Cannot update hourly stats: source_sensor_entity_id not set for {self.source_sensor}"
+            )
             return
 
         end_time = now.replace(minute=0, second=0, microsecond=0)
         start_time = end_time - timedelta(hours=1)
 
-        _LOGGER.debug(f"Querying hourly stats for {self.source_sensor_entity_id} from {start_time} to {end_time}")
+        _LOGGER.debug(
+            f"Querying hourly stats for {self.source_sensor_entity_id} from {start_time} to {end_time}"
+        )
         stats = await get_instance(self.hass).async_add_executor_job(
             statistics_during_period,
             self.hass,
@@ -169,16 +185,26 @@ class PowerMaxCoordinator:
             {"mean"},
         )
 
-        if self.source_sensor_entity_id in stats and stats[self.source_sensor_entity_id] and stats[self.source_sensor_entity_id][0]["mean"] is not None:
+        if (
+            self.source_sensor_entity_id in stats
+            and stats[self.source_sensor_entity_id]
+            and stats[self.source_sensor_entity_id][0]["mean"] is not None
+        ):
             hourly_avg_watts = stats[self.source_sensor_entity_id][0]["mean"]
             # Only use non-negative values
             if hourly_avg_watts >= 0:
-                hourly_avg_kw = hourly_avg_watts / 1000.0  # Convert watts to kW
-                _LOGGER.debug(f"Hourly average power for {start_time} to {end_time}: {hourly_avg_kw} kW (from {hourly_avg_watts} W)")
+                hourly_avg_kw = (
+                    hourly_avg_watts / WATTS_TO_KILOWATTS
+                )  # Convert watts to kW
+                _LOGGER.debug(
+                    f"Hourly average power for {start_time} to {end_time}: {hourly_avg_kw} kW (from {hourly_avg_watts} W)"
+                )
                 # Check binary sensor state
                 if self._can_update_max_values():
                     # Insert new value into sorted max_values list
-                    new_max_values = sorted(self.max_values + [hourly_avg_kw], reverse=True)[:self.num_max_values]
+                    new_max_values = sorted(
+                        self.max_values + [hourly_avg_kw], reverse=True
+                    )[: self.num_max_values]
                     new_timestamps = self.max_values_timestamps.copy()
 
                     # Find where the new value was inserted
@@ -207,25 +233,35 @@ class PowerMaxCoordinator:
                         # Force sensor update
                         await self._update_entities("hourly update")
                 else:
-                    _LOGGER.debug("Skipping max values update due to binary sensor state")
+                    _LOGGER.debug(
+                        "Skipping max values update due to binary sensor state"
+                    )
             else:
-                _LOGGER.debug(f"Skipping negative hourly average power: {hourly_avg_watts} W")
+                _LOGGER.debug(
+                    f"Skipping negative hourly average power: {hourly_avg_watts} W"
+                )
         else:
-            _LOGGER.warning(f"No mean statistics found for {self.source_sensor_entity_id} from {start_time} to {end_time}. Stats: {stats}")
+            _LOGGER.warning(
+                f"No mean statistics found for {self.source_sensor_entity_id} from {start_time} to {end_time}. Stats: {stats}"
+            )
 
     async def async_update_max_values_from_midnight(self):
         """Update max values from midnight to the current hour."""
         if not self.source_sensor_entity_id:
-            _LOGGER.debug(f"Cannot update max values: source_sensor_entity_id not set for {self.source_sensor}")
+            _LOGGER.debug(
+                f"Cannot update max values: source_sensor_entity_id not set for {self.source_sensor}"
+            )
             return
 
         now = datetime.now()
         end_time = now.replace(minute=0, second=0, microsecond=0)
         start_time = now.replace(hour=0, minute=0, second=0, microsecond=0)  # Midnight
-        _LOGGER.debug(f"Updating max values for {self.source_sensor_entity_id} from {start_time} to {end_time}")
+        _LOGGER.debug(
+            f"Updating max values for {self.source_sensor_entity_id} from {start_time} to {end_time}"
+        )
 
         # Calculate number of hours from midnight to current hour
-        hours = (end_time - start_time).seconds // 3600
+        hours = (end_time - start_time).seconds // SECONDS_PER_HOUR
         if hours == 0:
             _LOGGER.debug("No hours to process since midnight")
             return
@@ -235,7 +271,9 @@ class PowerMaxCoordinator:
         for hour in range(hours):
             hour_start = start_time + timedelta(hours=hour)
             hour_end = hour_start + timedelta(hours=1)
-            _LOGGER.debug(f"Querying stats for {self.source_sensor_entity_id} from {hour_start} to {hour_end}")
+            _LOGGER.debug(
+                f"Querying stats for {self.source_sensor_entity_id} from {hour_start} to {hour_end}"
+            )
             stats = await get_instance(self.hass).async_add_executor_job(
                 statistics_during_period,
                 self.hass,
@@ -247,14 +285,24 @@ class PowerMaxCoordinator:
                 {"mean"},
             )
 
-            if self.source_sensor_entity_id in stats and stats[self.source_sensor_entity_id] and stats[self.source_sensor_entity_id][0]["mean"] is not None:
+            if (
+                self.source_sensor_entity_id in stats
+                and stats[self.source_sensor_entity_id]
+                and stats[self.source_sensor_entity_id][0]["mean"] is not None
+            ):
                 hourly_avg_watts = stats[self.source_sensor_entity_id][0]["mean"]
                 if hourly_avg_watts >= 0:
-                    hourly_avg_kw = hourly_avg_watts / 1000.0  # Convert watts to kW
-                    _LOGGER.debug(f"Hourly average power for {hour_start} to {hour_end}: {hourly_avg_kw} kW (from {hourly_avg_watts} W)")
+                    hourly_avg_kw = (
+                        hourly_avg_watts / WATTS_TO_KILOWATTS
+                    )  # Convert watts to kW
+                    _LOGGER.debug(
+                        f"Hourly average power for {hour_start} to {hour_end}: {hourly_avg_kw} kW (from {hourly_avg_watts} W)"
+                    )
                     if self._can_update_max_values():
                         old_max_values = new_max_values
-                        new_max_values = sorted(new_max_values + [hourly_avg_kw], reverse=True)[:self.num_max_values]
+                        new_max_values = sorted(
+                            new_max_values + [hourly_avg_kw], reverse=True
+                        )[: self.num_max_values]
 
                         # Update timestamps if value was added
                         if hourly_avg_kw not in old_max_values or old_max_values.count(
@@ -272,11 +320,17 @@ class PowerMaxCoordinator:
                             new_timestamps.insert(insert_index, hour_end)
                             new_timestamps = new_timestamps[: self.num_max_values]
                     else:
-                        _LOGGER.debug("Skipping max values update due to binary sensor state")
+                        _LOGGER.debug(
+                            "Skipping max values update due to binary sensor state"
+                        )
                 else:
-                    _LOGGER.debug(f"Skipping negative hourly average power: {hourly_avg_watts} W")
+                    _LOGGER.debug(
+                        f"Skipping negative hourly average power: {hourly_avg_watts} W"
+                    )
             else:
-                _LOGGER.warning(f"No mean statistics found for {self.source_sensor_entity_id} from {hour_start} to {hour_end}. Stats: {stats}")
+                _LOGGER.warning(
+                    f"No mean statistics found for {self.source_sensor_entity_id} from {hour_start} to {hour_end}. Stats: {stats}"
+                )
 
         # Update max values if changed
         if new_max_values != self.max_values:
@@ -297,7 +351,7 @@ class PowerMaxCoordinator:
         )
 
         # Calculate number of hours from start_time to end_time
-        hours = int((end_time - start_time).total_seconds() // 3600)
+        hours = int((end_time - start_time).total_seconds() // SECONDS_PER_HOUR)
         if hours == 0:
             _LOGGER.debug("No hours to process for monthly update")
             new_max_values = [0.0] * self.num_max_values
@@ -329,7 +383,9 @@ class PowerMaxCoordinator:
                 ):
                     hourly_avg_watts = stats[self.source_sensor_entity_id][0]["mean"]
                     if hourly_avg_watts >= 0:
-                        hourly_avg_kw = hourly_avg_watts / 1000.0  # Convert watts to kW
+                        hourly_avg_kw = (
+                            hourly_avg_watts / WATTS_TO_KILOWATTS
+                        )  # Convert watts to kW
                         _LOGGER.debug(
                             f"Hourly average power for {hour_start} to {hour_end}: {hourly_avg_kw} kW (from {hourly_avg_watts} W)"
                         )
@@ -382,12 +438,18 @@ class PowerMaxCoordinator:
         valid_entities = [e for e in self.entities if self._is_valid_entity(e)]
         # Remove invalid entities from self.entities
         if len(valid_entities) < len(self.entities):
-            _LOGGER.warning(f"Removed {len(self.entities) - len(valid_entities)} invalid entities from coordinator for {self.source_sensor}")
+            _LOGGER.warning(
+                f"Removed {len(self.entities) - len(valid_entities)} invalid entities from coordinator for {self.source_sensor}"
+            )
             self.entities = valid_entities
 
-        _LOGGER.debug(f"Processing {update_type} for {len(valid_entities)} valid entities")
+        _LOGGER.debug(
+            f"Processing {update_type} for {len(valid_entities)} valid entities"
+        )
         for entity in valid_entities:
-            _LOGGER.debug(f"Updating entity {entity.entity_id} with unique_id {entity._attr_unique_id}")
+            _LOGGER.debug(
+                f"Updating entity {entity.entity_id} with unique_id {entity._attr_unique_id}"
+            )
             try:
                 write_method = entity.async_schedule_update_ha_state
                 if write_method is not None:
@@ -401,7 +463,9 @@ class PowerMaxCoordinator:
                     f"Failed to schedule state update for entity {entity.entity_id} with unique_id {entity._attr_unique_id}: {e}"
                 )
         if not valid_entities:
-            _LOGGER.error(f"No valid entities found for {update_type} for {self.source_sensor}")
+            _LOGGER.error(
+                f"No valid entities found for {update_type} for {self.source_sensor}"
+            )
 
     def _can_update_max_values(self):
         """Check if max values can be updated based on binary sensor state."""

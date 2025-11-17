@@ -14,7 +14,15 @@ from homeassistant.helpers.event import (
 )
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.storage import Store
-from .const import DOMAIN, CONF_NUM_MAX_VALUES, CONF_SOURCE_SENSOR, CONF_BINARY_SENSOR
+from .const import (
+    DOMAIN,
+    CONF_NUM_MAX_VALUES,
+    CONF_SOURCE_SENSOR,
+    CONF_BINARY_SENSOR,
+    WATTS_TO_KILOWATTS,
+    KILOWATT_HOURS_PER_WATT_HOUR,
+    SECONDS_PER_HOUR,
+)
 from .coordinator import PowerMaxCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -307,7 +315,12 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
                             # Average power in W
                             avg_power = (self._last_power + current_power) / 2
                             # Energy in kWh
-                            delta_energy = avg_power * delta_seconds / 3600000
+                            delta_energy = (
+                                avg_power
+                                * delta_seconds
+                                * KILOWATT_HOURS_PER_WATT_HOUR
+                                / SECONDS_PER_HOUR
+                            )
                             self._accumulated_energy += delta_energy
                         self._last_power = current_power
                         self._last_time = now
@@ -340,7 +353,7 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
         if self._hour_start is None:
             return 0.0
         now = dt_util.utcnow()
-        elapsed_hours = (now - self._hour_start).total_seconds() / 3600
+        elapsed_hours = (now - self._hour_start).total_seconds() / SECONDS_PER_HOUR
         if elapsed_hours > 0:
             return round(self._accumulated_energy / elapsed_hours, 3)
         return 0.0
