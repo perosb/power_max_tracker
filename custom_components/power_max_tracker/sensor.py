@@ -1,17 +1,24 @@
 import logging
-from datetime import datetime
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
+from homeassistant.components.sensor import (
+    SensorEntity,
+    SensorDeviceClass,
+    SensorStateClass,
+)
 from homeassistant.const import UnitOfPower
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.event import async_track_state_change_event, async_track_time_change
+from homeassistant.helpers.event import (
+    async_track_state_change_event,
+    async_track_time_change,
+)
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.storage import Store
 from .const import DOMAIN, CONF_NUM_MAX_VALUES, CONF_SOURCE_SENSOR, CONF_BINARY_SENSOR
 from .coordinator import PowerMaxCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class GatedSensorEntity(SensorEntity):
     """Base class for sensors gated by a binary sensor."""
@@ -27,6 +34,7 @@ class GatedSensorEntity(SensorEntity):
             return True
         state = self.hass.states.get(self._binary_sensor)
         return state is not None and state.state == "on"
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -52,7 +60,10 @@ async def async_setup_entry(
     async_add_entities(sensors, update_before_add=True)
     for sensor in sensors:
         coordinator.add_entity(sensor)
-        _LOGGER.debug(f"Registered sensor {sensor._attr_name} with coordinator, unique_id {sensor._attr_unique_id}, entity_id {sensor.entity_id}")
+        _LOGGER.debug(
+            f"Registered sensor {sensor._attr_name} with coordinator, unique_id {sensor._attr_unique_id}, entity_id {sensor.entity_id}"
+        )
+
 
 class MaxPowerSensor(SensorEntity):
     """Sensor for max hourly average power in kW."""
@@ -70,8 +81,6 @@ class MaxPowerSensor(SensorEntity):
         self._attr_icon = "mdi:chart-line"
         self._attr_should_poll = False  # Updated via coordinator
         self._attr_force_update = True  # Force state updates
-        self._last_value = None
-        self._last_update = None
 
     @property
     def native_value(self):
@@ -80,17 +89,17 @@ class MaxPowerSensor(SensorEntity):
         current_value = (
             round(max_values[self._index], 2) if len(max_values) > self._index else 0.0
         )
-        if current_value != self._last_value:
-            self._last_value = current_value
-            self._last_update = datetime.now()
         return current_value
 
     @property
     def extra_state_attributes(self):
         """Return extra attributes."""
-        return {
-            "last_update": self._last_update.isoformat() if self._last_update else None
-        }
+        timestamps = getattr(self._coordinator, "max_values_timestamps", [])
+        last_update = None
+        if len(timestamps) > self._index and timestamps[self._index] is not None:
+            last_update = timestamps[self._index].isoformat()
+        return {"last_update": last_update}
+
 
 class AverageMaxPowerSensor(SensorEntity):
     """Sensor for the average of all max hourly average power values."""
@@ -122,9 +131,8 @@ class AverageMaxPowerSensor(SensorEntity):
         """Return extra attributes."""
         prev_values = self._coordinator.previous_month_max_values
         prev_avg = round(sum(prev_values) / len(prev_values), 2) if prev_values else 0.0
-        return {
-            "previous_month_average": prev_avg
-        }
+        return {"previous_month_average": prev_avg}
+
 
 class SourcePowerSensor(GatedSensorEntity):
     """Sensor that tracks the source sensor state, gated by binary sensor."""
@@ -146,19 +154,27 @@ class SourcePowerSensor(GatedSensorEntity):
 
     async def async_added_to_hass(self):
         """Handle entity added to hass."""
+
         async def _async_state_changed(event):
             """Handle state changes of source or binary sensor."""
             if self._can_update():
                 source_state = self.hass.states.get(self._source_sensor)
-                if source_state is not None and source_state.state not in ("unavailable", "unknown"):
+                if source_state is not None and source_state.state not in (
+                    "unavailable",
+                    "unknown",
+                ):
                     try:
                         value = float(source_state.state)
                         self._state = max(0.0, value)  # Ignore negative values
                     except (ValueError, TypeError):
-                        _LOGGER.warning(f"Invalid state for {self._source_sensor}: {source_state.state}")
+                        _LOGGER.warning(
+                            f"Invalid state for {self._source_sensor}: {source_state.state}"
+                        )
                         self._state = 0.0
                 else:
-                    _LOGGER.debug(f"Source sensor {self._source_sensor} unavailable or unknown")
+                    _LOGGER.debug(
+                        f"Source sensor {self._source_sensor} unavailable or unknown"
+                    )
                     self._state = 0.0
             else:
                 self._state = 0.0
@@ -169,9 +185,7 @@ class SourcePowerSensor(GatedSensorEntity):
         if self._binary_sensor:
             sensors.append(self._binary_sensor)
         self.async_on_remove(
-            async_track_state_change_event(
-                self.hass, sensors, _async_state_changed
-            )
+            async_track_state_change_event(self.hass, sensors, _async_state_changed)
         )
 
     @property
@@ -280,7 +294,10 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
                 return
             if self._can_update():
                 source_state = self.hass.states.get(self._source_sensor)
-                if source_state is not None and source_state.state not in ("unavailable", "unknown"):
+                if source_state is not None and source_state.state not in (
+                    "unavailable",
+                    "unknown",
+                ):
                     try:
                         current_power = float(source_state.state)
                         if current_power < 0:
@@ -295,10 +312,14 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
                         self._last_power = current_power
                         self._last_time = now
                     except (ValueError, TypeError):
-                        _LOGGER.warning(f"Invalid state for {self._source_sensor}: {source_state.state}")
+                        _LOGGER.warning(
+                            f"Invalid state for {self._source_sensor}: {source_state.state}"
+                        )
                         self._last_power = 0.0
                 else:
-                    _LOGGER.debug(f"Source sensor {self._source_sensor} unavailable or unknown")
+                    _LOGGER.debug(
+                        f"Source sensor {self._source_sensor} unavailable or unknown"
+                    )
                     self._last_power = 0.0
             else:
                 self._last_power = 0.0
@@ -310,9 +331,7 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
         if self._binary_sensor:
             sensors.append(self._binary_sensor)
         self.async_on_remove(
-            async_track_state_change_event(
-                self.hass, sensors, _async_state_changed
-            )
+            async_track_state_change_event(self.hass, sensors, _async_state_changed)
         )
 
     @property
