@@ -1,4 +1,4 @@
-name: Validate with hassfest
+name: Validate with hassfest and tests
 
 on:
   push:
@@ -11,6 +11,13 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
         - uses: "actions/checkout@v4"
+        - name: Set up Python
+          uses: actions/setup-python@v4
+          with:
+            python-version: "3.11"
+        - name: Run unit tests
+          run: |
+            python custom_components/power_max_tracker/tests/test_coordinator_helpers.py
         - uses: "home-assistant/actions/hassfest@master"
         - name: HACS Action
           uses: "hacs/action@main"
