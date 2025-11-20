@@ -6,7 +6,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import UnitOfPower
 from homeassistant.core import HomeAssistant
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import (
     async_track_state_change_event,
@@ -19,7 +19,7 @@ from .const import (
     CONF_NUM_MAX_VALUES,
     CONF_SOURCE_SENSOR,
     CONF_BINARY_SENSOR,
-    WATTS_TO_KILOWATTS,
+    CONF_MONTHLY_RESET,
     KILOWATT_HOURS_PER_WATT_HOUR,
     SECONDS_PER_HOUR,
 )
@@ -28,10 +28,47 @@ from .coordinator import PowerMaxCoordinator
 _LOGGER = logging.getLogger(__name__)
 
 
+class MockEntry:
+    """Mock ConfigEntry for YAML configurations."""
+
+    def __init__(
+        self,
+        entry_id,
+        domain,
+        data,
+        options=None,
+        source="user",
+        title="",
+        version=1,
+        minor_version=1,
+        state=ConfigEntryState.LOADED,
+    ):
+        self.entry_id = entry_id
+        self.domain = domain
+        self.data = data
+        self.options = options or {}
+        self.source = source
+        self.title = title
+        self.version = version
+        self.minor_version = minor_version
+        self.state = state
+        self.update_listeners = []
+        self.reason = None
+        self.when_setup = None
+
+    async def async_setup(self, hass, integration=None):
+        """Mock async_setup method."""
+        return True
+
+    async def async_unload(self, hass, integration=None):
+        """Mock async_unload method."""
+        return True
+
+
 class GatedSensorEntity(SensorEntity):
     """Base class for sensors gated by a binary sensor."""
 
-    def __init__(self, entry: ConfigEntry):
+    def __init__(self, entry):
         """Initialize."""
         super().__init__()
         self._binary_sensor = entry.data.get(CONF_BINARY_SENSOR)
@@ -49,9 +86,64 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ):
-    """Set up sensors."""
+    """Set up sensors for config entry."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
-    num_max_values = int(entry.data.get(CONF_NUM_MAX_VALUES, 2))  # Cast to int
+    await _setup_sensors(hass, coordinator, entry, async_add_entities)
+
+
+async def async_setup_platform(
+    hass: HomeAssistant,
+    config: dict,
+    async_add_entities: AddEntitiesCallback,
+    discovery_info=None,
+):
+    """Set up sensors for YAML configuration."""
+    _LOGGER.debug(f"async_setup_platform called with config: {config}")
+    num_max_values = config.get(CONF_NUM_MAX_VALUES, 2)
+    if not isinstance(num_max_values, int) or not (1 <= num_max_values <= 10):
+        _LOGGER.error("num_max_values must be an integer between 1 and 10")
+        return
+
+    yaml_config = {
+        CONF_SOURCE_SENSOR: config.get(CONF_SOURCE_SENSOR),
+        CONF_NUM_MAX_VALUES: num_max_values,
+        CONF_MONTHLY_RESET: config.get(CONF_MONTHLY_RESET, False),
+        CONF_BINARY_SENSOR: config.get(CONF_BINARY_SENSOR),
+    }
+
+    # Create a unique ID
+    unique_id = f"yaml_{yaml_config[CONF_SOURCE_SENSOR].replace('.', '_')}"
+
+    # Create coordinator
+    coordinator = PowerMaxCoordinator(hass, None, yaml_config, unique_id)
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][unique_id] = coordinator
+    await coordinator.async_setup()
+
+    # Create mock entry
+    mock_entry = MockEntry(
+        entry_id=unique_id,
+        domain=DOMAIN,
+        data=yaml_config,
+        options={},
+        source="user",
+        title=f"YAML {yaml_config[CONF_SOURCE_SENSOR]}",
+        version=1,
+        minor_version=1,
+        state=ConfigEntryState.LOADED,
+    )
+
+    await _setup_sensors(hass, coordinator, mock_entry, async_add_entities)
+
+
+async def _setup_sensors(
+    hass: HomeAssistant,
+    coordinator: PowerMaxCoordinator,
+    entry,
+    async_add_entities: AddEntitiesCallback,
+):
+    """Set up sensors for a coordinator."""
+    num_max_values = coordinator.num_max_values
     sensors = [
         MaxPowerSensor(coordinator, idx, f"Max Hourly Average Power {idx + 1}")
         for idx in range(num_max_values)
@@ -68,9 +160,6 @@ async def async_setup_entry(
     async_add_entities(sensors, update_before_add=True)
     for sensor in sensors:
         coordinator.add_entity(sensor)
-        _LOGGER.debug(
-            f"Registered sensor {sensor._attr_name} with coordinator, unique_id {sensor._attr_unique_id}, entity_id {sensor.entity_id}"
-        )
 
 
 class MaxPowerSensor(SensorEntity):
@@ -82,7 +171,7 @@ class MaxPowerSensor(SensorEntity):
         self._coordinator = coordinator
         self._index = index
         self._attr_name = name
-        self._attr_unique_id = f"{coordinator.entry.entry_id}_max_values_{index + 1}"
+        self._attr_unique_id = f"{coordinator.unique_id}_max_values_{index + 1}"
         self._attr_device_class = SensorDeviceClass.POWER
         self._attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -112,13 +201,13 @@ class MaxPowerSensor(SensorEntity):
 class AverageMaxPowerSensor(SensorEntity):
     """Sensor for the average of all max hourly average power values."""
 
-    def __init__(self, coordinator: PowerMaxCoordinator, entry: ConfigEntry):
+    def __init__(self, coordinator: PowerMaxCoordinator, entry: ConfigEntry = None):
         """Initialize."""
         super().__init__()
         self._coordinator = coordinator
         self._entry = entry
         self._attr_name = "Average Max Hourly Average Power"
-        self._attr_unique_id = f"{entry.entry_id}_average_max"
+        self._attr_unique_id = f"{coordinator.unique_id}_average_max"
         self._attr_device_class = SensorDeviceClass.POWER
         self._attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -145,14 +234,14 @@ class AverageMaxPowerSensor(SensorEntity):
 class SourcePowerSensor(GatedSensorEntity):
     """Sensor that tracks the source sensor state, gated by binary sensor."""
 
-    def __init__(self, coordinator: PowerMaxCoordinator, entry: ConfigEntry):
+    def __init__(self, coordinator: PowerMaxCoordinator, entry):
         """Initialize."""
         super().__init__(entry)
         self._coordinator = coordinator
         self._entry = entry
         self._source_sensor = entry.data[CONF_SOURCE_SENSOR]
         self._attr_name = f"Power Max Source {self._source_sensor.split('.')[-1]}"
-        self._attr_unique_id = f"{entry.entry_id}_source"
+        self._attr_unique_id = f"{coordinator.unique_id}_source"
         self._attr_device_class = SensorDeviceClass.POWER
         self._attr_native_unit_of_measurement = UnitOfPower.WATT
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -205,14 +294,14 @@ class SourcePowerSensor(GatedSensorEntity):
 class HourlyAveragePowerSensor(GatedSensorEntity):
     """Sensor for hourly average power in kW so far the current hour."""
 
-    def __init__(self, coordinator: PowerMaxCoordinator, entry: ConfigEntry):
+    def __init__(self, coordinator: PowerMaxCoordinator, entry):
         """Initialize."""
         super().__init__(entry)
         self._coordinator = coordinator
         self._entry = entry
         self._source_sensor = entry.data[CONF_SOURCE_SENSOR]
         self._attr_name = f"Hourly Average Power {self._source_sensor.split('.')[-1]}"
-        self._attr_unique_id = f"{entry.entry_id}_hourly_average_power"
+        self._attr_unique_id = f"{coordinator.unique_id}_hourly_average_power"
         self._attr_device_class = SensorDeviceClass.POWER
         self._attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -242,7 +331,9 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
         """Handle entity added to hass."""
         # Get storage for this sensor
         self._store = Store(
-            self.hass, 1, f"power_max_tracker_{self._entry.entry_id}_hourly_sensor"
+            self.hass,
+            1,
+            f"power_max_tracker_{self._coordinator.unique_id}_hourly_sensor",
         )
         # Load persisted state
         stored_data = await self._store.async_load()
