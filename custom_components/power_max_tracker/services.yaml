@@ -5,5 +5,5 @@ update_max_values:
 
 reset_max_values:
   name: reset_max_values
-  description: Reset max values to 0 for all Power Max Tracker instances (manual monthly reset).
+  description: Update max values to the current month's maximum so far for all Power Max Tracker instances.
   fields: {}

@@ -3,7 +3,14 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_ENTITY_ID
 from homeassistant.helpers import selector
-from .const import DOMAIN, CONF_SOURCE_SENSOR, CONF_MONTHLY_RESET, CONF_NUM_MAX_VALUES, CONF_BINARY_SENSOR
+from .const import (
+    DOMAIN,
+    CONF_SOURCE_SENSOR,
+    CONF_MONTHLY_RESET,
+    CONF_NUM_MAX_VALUES,
+    CONF_BINARY_SENSOR,
+)
+
 
 class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle the config flow."""
@@ -18,7 +25,9 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_show_form(
                     step_id="user",
                     data_schema=self._get_schema(),
-                    errors={CONF_NUM_MAX_VALUES: "Number of max values must be an integer between 1 and 10"}
+                    errors={
+                        CONF_NUM_MAX_VALUES: "Number of max values must be an integer between 1 and 10"
+                    },
                 )
 
             return self._create_entry(user_input)
@@ -34,6 +43,7 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if num_max < 1 or num_max > 10:
             return self.async_abort(reason="invalid_max_values")
 
+        # Duplicate checking is handled in async_setup(), so we always create here
         return self._create_entry(import_config)
 
     def _get_schema(self):
@@ -41,12 +51,11 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return vol.Schema(
             {
                 vol.Required(CONF_SOURCE_SENSOR): selector.EntitySelector(
-                    selector.EntitySelectorConfig(
-                        domain="sensor",
-                        device_class="power"
-                    )
+                    selector.EntitySelectorConfig(domain="sensor", device_class="power")
                 ),
-                vol.Optional(CONF_MONTHLY_RESET, default=False): selector.BooleanSelector(),
+                vol.Optional(
+                    CONF_MONTHLY_RESET, default=False
+                ): selector.BooleanSelector(),
                 vol.Required(CONF_NUM_MAX_VALUES, default=2): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         min=1, max=10, step=1, mode=selector.NumberSelectorMode.BOX

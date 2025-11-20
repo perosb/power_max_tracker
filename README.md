@@ -14,7 +14,7 @@ The **Power Max Tracker** integration for Home Assistant tracks the maximum hour
 - **Binary Sensor Gating**: Only updates when the binary sensor (if configured) is `"on"`.
 - **Monthly Reset**: Optionally resets `max_values` to `0` on the 1st of each month.
 - **Multiple Config Entries**: Supports multiple source sensors with separate max value tracking.
-- **Service**: Provides the `power_max_tracker.update_max_values` service to recalculate max values from midnight to the current hour.
+- **Services**: Provides `power_max_tracker.update_max_values` to recalculate max values from midnight, and `power_max_tracker.reset_max_values` to update max values to the current month's maximum so far.
 
 ## Installation
 1. **Via HACS**:
@@ -30,19 +30,28 @@ The **Power Max Tracker** integration for Home Assistant tracks the maximum hour
 ## Configuration
 Add the integration via the Home Assistant UI or `configuration.yaml`.
 
-### Example `configuration.yaml`
+### UI Configuration
+1. Go to **Settings > Devices & Services > Add Integration**.
+2. Search for "Power Max Tracker" and select it.
+3. Configure the options:
+   - **Source Sensor**: The power sensor to track (must provide watts).
+   - **Number of Max Values**: Number of max power sensors (1-10, default 2).
+   - **Monthly Reset**: Reset max values on the 1st of each month.
+   - **Binary Sensor**: Optional binary sensor to gate updates.
+
+### YAML Configuration
+Add to your `configuration.yaml` under the `sensor` section:
+
 ```yaml
-power_max_tracker:
-  - source_sensor: sensor.power_sensor
+sensor:
+  - platform: power_max_tracker
+    source_sensor: sensor.power_sensor
     num_max_values: 2
     monthly_reset: false
     binary_sensor: binary_sensor.power_enabled
-  - source_sensor: sensor.power_another_source
-    num_max_values: 3
-    monthly_reset: true
 ```
 
-**Note:** YAML entries are imported as config entries when Home Assistant restarts. Edit `configuration.yaml` and restart Home Assistant (or reload YAML configuration) to apply changes made outside the UI.
+**Note:** YAML configurations create config entries automatically. To modify, edit `configuration.yaml` and restart Home Assistant.
 
 ### Configuration Options
 - `source_sensor` (required): The power sensor to track (e.g., `sensor.power_sensor`), must provide watts (W).
@@ -70,19 +79,22 @@ template:
 
 Then, configure the integration to use this sensor:
 ```yaml
-power_max_tracker:
-  - source_sensor: sensor.power_sensor
+sensor:
+  - platform: power_max_tracker
+    source_sensor: sensor.power_sensor
     binary_sensor: binary_sensor.power_tracking_gate
 ```
 
 ## Usage
 - **Entities Created**:
-  - `sensor.max_hourly_average_power_<index>_<entry_id>`: Top `num_max_values` hourly average power values in kW (e.g., `sensor.max_hourly_average_power_1_01K6ABFNPK61HBVAN855WBHXBG`).
-  - `sensor.average_max_hourly_average_power_<entry_id>`: Average of all max hourly average power values in kW (includes `previous_month_average` attribute).
-  - `sensor.power_max_source_<entry_id>`: Tracks the source sensor in watts, `0` if negative or binary sensor is off/unavailable.
-  - `sensor.hourly_average_power_<entry_id>`: Average power in kW so far in the current hour, with periodic updates for 0W periods.
-- **Service**: Call `power_max_tracker.update_max_values` via Developer Tools > Services to recalculate max values from midnight.
-- **Updates**: Max sensors update at 1 minute past each hour or after calling the service. The source and hourly average sensors update in real-time when the binary sensor is `"on"`, with additional periodic updates for the hourly average sensor.
+  - `sensor.max_hourly_average_power_<index>_<unique_id>`: Top `num_max_values` hourly average power values in kW (e.g., `sensor.max_hourly_average_power_1_yaml_sensor_tibber_power`).
+  - `sensor.average_max_hourly_average_power_<unique_id>`: Average of all max hourly average power values in kW (includes `previous_month_average` attribute).
+  - `sensor.power_max_source_<unique_id>`: Tracks the source sensor in watts, `0` if negative or binary sensor is off/unavailable.
+  - `sensor.hourly_average_power_<unique_id>`: Average power in kW so far in the current hour, with periodic updates for 0W periods.
+- **Services**:
+  - `power_max_tracker.update_max_values`: Recalculates max values from midnight to the current hour.
+  - `power_max_tracker.reset_max_values`: Updates max values to the current month's maximum so far (resets to 0 and recalculates from month start).
+- **Updates**: Max sensors update at 1 minute past each hour or after calling services. The source and hourly average sensors update in real-time when the binary sensor is `"on"`, with additional periodic updates for the hourly average sensor.
 
 ## Important Notes
 - **Renaming Source Sensor**: If the `source_sensor` is renamed (e.g., from `sensor.power_sensor` to `sensor.new_power_sensor`), the integration will stop tracking it. Update the configuration with the new entity ID and restart Home Assistant to restore functionality.
