@@ -60,25 +60,73 @@ async def async_setup(hass: HomeAssistant, config: dict):
     if DOMAIN not in config:
         return True
 
+    # Process YAML configuration with proper entry management
+    yaml_configs = []
     for conf in config[DOMAIN]:
         num_max_values = conf.get(CONF_NUM_MAX_VALUES, 2)
         if not isinstance(num_max_values, int) or not (1 <= num_max_values <= 10):
             _LOGGER.error("num_max_values must be an integer between 1 and 10")
             continue
 
-        entry_data = {
+        yaml_config = {
             CONF_SOURCE_SENSOR: conf.get(CONF_SOURCE_SENSOR),
             CONF_NUM_MAX_VALUES: num_max_values,
             CONF_MONTHLY_RESET: conf.get(CONF_MONTHLY_RESET, False),
             CONF_BINARY_SENSOR: conf.get(CONF_BINARY_SENSOR),
         }
-        hass.async_create_task(
-            hass.config_entries.flow.async_init(
-                DOMAIN,
-                context={"source": config_entries.SOURCE_IMPORT},
-                data=entry_data,
+        yaml_configs.append(yaml_config)
+
+    # Update existing entries and create new ones as needed
+    existing_entries = {
+        entry.entry_id: entry for entry in hass.config_entries.async_entries(DOMAIN)
+    }
+    processed_entry_ids = set()
+
+    for yaml_config in yaml_configs:
+        # Find existing entry with matching config
+        matching_entry = None
+        for entry in existing_entries.values():
+            if (
+                entry.source == config_entries.SOURCE_IMPORT
+                and entry.data.get(CONF_SOURCE_SENSOR)
+                == yaml_config[CONF_SOURCE_SENSOR]
+                and entry.data.get(CONF_NUM_MAX_VALUES)
+                == yaml_config[CONF_NUM_MAX_VALUES]
+                and entry.data.get(CONF_MONTHLY_RESET)
+                == yaml_config[CONF_MONTHLY_RESET]
+                and entry.data.get(CONF_BINARY_SENSOR)
+                == yaml_config[CONF_BINARY_SENSOR]
+            ):
+                matching_entry = entry
+                break
+
+        if matching_entry:
+            # Entry already exists with correct config, mark as processed
+            processed_entry_ids.add(matching_entry.entry_id)
+            _LOGGER.debug(
+                f"YAML entry already exists for {yaml_config[CONF_SOURCE_SENSOR]}"
             )
-        )
+        else:
+            # Create new entry for this YAML config
+            _LOGGER.debug(
+                f"Creating new YAML entry for {yaml_config[CONF_SOURCE_SENSOR]}"
+            )
+            hass.async_create_task(
+                hass.config_entries.flow.async_init(
+                    DOMAIN,
+                    context={"source": config_entries.SOURCE_IMPORT},
+                    data=yaml_config,
+                )
+            )
+
+    # Remove YAML entries that are no longer in configuration
+    for entry_id, entry in existing_entries.items():
+        if (
+            entry.source == config_entries.SOURCE_IMPORT
+            and entry_id not in processed_entry_ids
+        ):
+            _LOGGER.debug(f"Removing obsolete YAML entry: {entry_id}")
+            await hass.config_entries.async_remove(entry_id)
 
     return True
 
