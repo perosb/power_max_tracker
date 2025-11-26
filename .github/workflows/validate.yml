@@ -2,9 +2,9 @@ name: Validate with hassfest and tests
 
 on:
   push:
+    branches: [main]
   pull_request:
-  schedule:
-    - cron:  '0 0 * * *'
+    branches: [main]
 
 jobs:
   validate:
@@ -14,10 +14,14 @@ jobs:
         - name: Set up Python
           uses: actions/setup-python@v4
           with:
-            python-version: "3.11"
+            python-version: "3.13"
+        - name: Install dependencies
+          run: |
+            python -m pip install --upgrade pip
+            pip install -r requirements-test.txt
         - name: Run unit tests
           run: |
-            python custom_components/power_max_tracker/tests/test_coordinator_helpers.py
+            ./run-tests.sh
         - uses: "home-assistant/actions/hassfest@master"
         - name: HACS Action
           uses: "hacs/action@main"

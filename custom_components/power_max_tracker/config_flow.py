@@ -27,7 +27,7 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data_schema=self._get_schema(),
                     errors={"base": "invalid_max_values"},
                 )
-            return self._create_entry(user_input)
+            return await self._create_entry(user_input)
 
         return self.async_show_form(
             step_id="user",
@@ -41,7 +41,7 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="invalid_max_values")
 
         # Duplicate checking is handled in async_setup(), so we always create here
-        return self._create_entry(import_config)
+        return await self._create_entry(import_config)
 
     def _get_schema(self):
         """Return the data schema for the form."""
@@ -74,7 +74,7 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
         )
 
-    def _create_entry(self, data):
+    async def _create_entry(self, data):
         """Normalize data and create the config entry."""
         normalized = {
             CONF_SOURCE_SENSOR: data[CONF_SOURCE_SENSOR],
@@ -86,5 +86,7 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             normalized[CONF_BINARY_SENSOR] = data[CONF_BINARY_SENSOR]
 
         source_sensor = normalized[CONF_SOURCE_SENSOR]
+        unique_id = f"power_max_tracker_{source_sensor.replace('.', '_')}"
+        await self.async_set_unique_id(unique_id)
         title = f"Power Max Tracker ({source_sensor.split('.')[-1]}-{str(uuid.uuid4())[:8]})"
         return self.async_create_entry(title=title, data=normalized)

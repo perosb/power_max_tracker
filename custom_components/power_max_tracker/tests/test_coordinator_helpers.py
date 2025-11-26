@@ -1,5 +1,6 @@
 """Tests for PowerMaxCoordinator helper methods."""
 
+import pytest
 from datetime import datetime
 from unittest.mock import MagicMock
 
@@ -53,14 +54,16 @@ def update_max_values_with_timestamp(
 class TestHelperMethods:
     """Test cases for helper methods that will be extracted."""
 
-    def test_watts_to_kilowatts_conversion(self):
+    @pytest.mark.asyncio
+    async def test_watts_to_kilowatts_conversion(self):
         """Test watts to kilowatts conversion."""
         assert watts_to_kilowatts(1000) == 1.0
         assert watts_to_kilowatts(500) == 0.5
         assert watts_to_kilowatts(0) == 0.0
         assert watts_to_kilowatts(2500) == 2.5
 
-    def test_update_max_values_with_timestamp_new_value(self):
+    @pytest.mark.asyncio
+    async def test_update_max_values_with_timestamp_new_value(self):
         """Test updating max values with a new value."""
         max_values = [0.0, 0.0]
         max_values_timestamps = [None, None]
@@ -91,7 +94,8 @@ class TestHelperMethods:
         assert new_max_values == [7.0, 5.0]
         assert new_timestamps == [now, now]
 
-    def test_update_max_values_with_timestamp_duplicate_value(self):
+    @pytest.mark.asyncio
+    async def test_update_max_values_with_timestamp_duplicate_value(self):
         """Test updating max values with duplicate values."""
         max_values = [5.0, 3.0]
         max_values_timestamps = [datetime.now(), datetime.now()]
@@ -105,7 +109,8 @@ class TestHelperMethods:
         assert updated is False  # No change because value already exists
         assert new_max_values == [5.0, 3.0]
 
-    def test_update_max_values_with_timestamp_no_change(self):
+    @pytest.mark.asyncio
+    async def test_update_max_values_with_timestamp_no_change(self):
         """Test updating max values with a value that doesn't make the top N."""
         max_values = [10.0, 8.0]
         max_values_timestamps = [datetime.now(), datetime.now()]
