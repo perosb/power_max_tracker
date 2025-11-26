@@ -7,33 +7,13 @@ They will fail when run in a standalone environment without HA installed.
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
-from homeassistant.core import HomeAssistant
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 
 from custom_components.power_max_tracker import async_setup, async_setup_entry, async_unload_entry
 from custom_components.power_max_tracker.const import DOMAIN
 
 
-@pytest.fixture
-def mock_hass():
-    """Create a mock Home Assistant instance."""
-    hass = MagicMock(spec=HomeAssistant)
-    hass.services = MagicMock()
-    hass.data = {}
-    hass.config = MagicMock()
-    hass.config.config_dir = "/tmp/test_hass_config"
-    hass.loop = MagicMock()
-    return hass
 
-
-@pytest.fixture
-def mock_config_entry():
-    """Create a mock config entry."""
-    entry = MagicMock(spec=ConfigEntry)
-    entry.entry_id = "test_entry_id"
-    entry.domain = DOMAIN
-    return entry
 
 
 class TestInitServices:

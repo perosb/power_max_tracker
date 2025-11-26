@@ -9,52 +9,13 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch, AsyncMock
 
-from homeassistant.core import HomeAssistant
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.storage import Store
 
-from custom_components.power_max_tracker.coordinator import PowerMaxCoordinator
 from custom_components.power_max_tracker.const import (
-    CONF_SOURCE_SENSOR,
-    CONF_MONTHLY_RESET,
-    CONF_NUM_MAX_VALUES,
-    CONF_BINARY_SENSOR,
     MAX_VALUES_STORAGE_KEY,
     TIMESTAMPS_STORAGE_KEY,
     PREVIOUS_MONTH_STORAGE_KEY,
 )
-
-
-@pytest.fixture
-def mock_hass():
-    """Create a mock Home Assistant instance."""
-    hass = MagicMock(spec=HomeAssistant)
-    hass.states = MagicMock()
-    hass.data = {}
-    hass.config = MagicMock()
-    hass.config.config_dir = "/tmp/test_hass_config"
-    hass.loop = MagicMock()
-    return hass
-
-
-@pytest.fixture
-def mock_config_entry():
-    """Create a mock config entry."""
-    entry = MagicMock(spec=ConfigEntry)
-    entry.entry_id = "test_entry_id"
-    entry.data = {
-        CONF_SOURCE_SENSOR: "sensor.test_power",
-        CONF_MONTHLY_RESET: False,
-        CONF_NUM_MAX_VALUES: 2,
-        CONF_BINARY_SENSOR: None,
-    }
-    return entry
-
-
-@pytest.fixture
-def coordinator(mock_hass, mock_config_entry):
-    """Create a PowerMaxCoordinator instance."""
-    return PowerMaxCoordinator(mock_hass, mock_config_entry)
 
 
 class TestPowerMaxCoordinator:
