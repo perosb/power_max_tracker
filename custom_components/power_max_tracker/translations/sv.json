@@ -42,7 +42,8 @@
       "invalid_max_values": "Antalet maxvärden måste vara ett heltal mellan 1 och 10."
     },
     "abort": {
-      "already_configured": "Enheten är redan konfigurerad"
+      "already_configured": "Enheten är redan konfigurerad",
+      "reconfigure_successful": "Omkonfigurationen lyckades."
     }
   }
 }
