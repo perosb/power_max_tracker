@@ -1,5 +1,6 @@
 """Tests for PowerMaxCoordinator helper methods."""
 
+import pytest
 from datetime import datetime
 from unittest.mock import MagicMock
 

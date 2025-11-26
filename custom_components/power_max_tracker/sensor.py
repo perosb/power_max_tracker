@@ -137,6 +137,8 @@ async def async_setup_platform(
 
     await _setup_sensors(hass, coordinator, mock_entry, async_add_entities)
 
+    return True
+
 
 async def _setup_sensors(
     hass: HomeAssistant,
