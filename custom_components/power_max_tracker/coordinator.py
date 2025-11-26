@@ -12,7 +12,6 @@ from .const import (
     CONF_MONTHLY_RESET,
     CONF_NUM_MAX_VALUES,
     CONF_BINARY_SENSOR,
-    CONF_POWER_SCALING_FACTOR,
     SECONDS_PER_HOUR,
     WATTS_TO_KILOWATTS,
     STORAGE_VERSION,
@@ -46,9 +45,6 @@ class PowerMaxCoordinator:
             self.monthly_reset = entry.data.get(CONF_MONTHLY_RESET, False)
             self.num_max_values = int(entry.data.get(CONF_NUM_MAX_VALUES, 2))
             self.binary_sensor = entry.data.get(CONF_BINARY_SENSOR, None)
-            self.power_scaling_factor = float(
-                entry.data.get(CONF_POWER_SCALING_FACTOR, 1.0)
-            )
             self.unique_id = entry.entry_id
         else:
             # YAML mode
@@ -56,10 +52,10 @@ class PowerMaxCoordinator:
             self.monthly_reset = yaml_config.get(CONF_MONTHLY_RESET, False)
             self.num_max_values = int(yaml_config.get(CONF_NUM_MAX_VALUES, 2))
             self.binary_sensor = yaml_config.get(CONF_BINARY_SENSOR, None)
-            self.power_scaling_factor = float(
-                yaml_config.get(CONF_POWER_SCALING_FACTOR, 1.0)
-            )
             self.unique_id = yaml_unique_id
+
+        # Always start with default scaling factor - auto-detection will handle the rest
+        self.power_scaling_factor = 1.0
 
         self.source_sensor_entity_id = None  # Set dynamically after entity registration
         self.max_values = [0.0] * self.num_max_values
@@ -93,6 +89,8 @@ class PowerMaxCoordinator:
             self.entities.append(entity)
             if entity._attr_unique_id.endswith("_source"):
                 self.source_sensor_entity_id = entity.entity_id
+                # Auto-detect scaling factor based on source sensor unit
+                self._auto_detect_scaling_factor()
         else:
             _LOGGER.error(
                 f"Failed to add entity: {entity}, has_unique_id={hasattr(entity, '_attr_unique_id')}, "
@@ -100,6 +98,57 @@ class PowerMaxCoordinator:
                 f"has_async_write={hasattr(entity, 'async_write_ha_state')}, "
                 f"is_callable={callable(getattr(entity, 'async_write_ha_state', None)) if entity else False}"
             )
+
+    def _auto_detect_scaling_factor(self):
+        """Auto-detect scaling factor based on source sensor's unit of measurement."""
+        if not self.source_sensor_entity_id:
+            return
+
+        # Try to get the unit from the entity registry first
+        unit = None
+        try:
+            from homeassistant.helpers.entity_registry import (
+                async_get as async_get_entity_registry,
+            )
+
+            entity_registry = async_get_entity_registry(self.hass)
+            entity_entry = entity_registry.async_get(self.source_sensor_entity_id)
+            if entity_entry and hasattr(entity_entry, "unit_of_measurement"):
+                unit = entity_entry.unit_of_measurement
+        except Exception as e:
+            _LOGGER.debug(f"Could not access entity registry: {e}")
+
+        # Fallback to state attributes if not in registry
+        if not unit:
+            try:
+                state = self.hass.states.get(self.source_sensor_entity_id)
+                if state and "unit_of_measurement" in state.attributes:
+                    unit = state.attributes["unit_of_measurement"]
+            except Exception as e:
+                _LOGGER.debug(f"Could not access state: {e}")
+
+        if unit:
+            unit_lower = unit.lower()
+            if unit_lower in ["kw", "kilowatt", "kilowatts"]:
+                self.power_scaling_factor = 1000.0  # Convert kW to W
+                _LOGGER.info(
+                    f"Auto-detected kW unit for {self.source_sensor_entity_id}, setting scaling factor to 1000"
+                )
+            elif unit_lower in ["w", "watt", "watts"]:
+                self.power_scaling_factor = 1.0  # No scaling needed
+                _LOGGER.info(
+                    f"Auto-detected W unit for {self.source_sensor_entity_id}, setting scaling factor to 1"
+                )
+            else:
+                _LOGGER.warning(
+                    f"Unknown unit '{unit}' for {self.source_sensor_entity_id}, using default scaling factor of 1.0"
+                )
+                self.power_scaling_factor = 1.0
+        else:
+            _LOGGER.debug(
+                f"Could not determine unit for {self.source_sensor_entity_id}, using default scaling factor of 1.0"
+            )
+            self.power_scaling_factor = 1.0
 
     async def async_setup(self):
         """Set up hourly update and monthly reset."""
@@ -121,6 +170,10 @@ class PowerMaxCoordinator:
 
         # Clean invalid entities
         self.entities = [e for e in self.entities if self._is_valid_entity(e)]
+
+        # Auto-detect scaling factor if not already done
+        if self.source_sensor_entity_id:
+            self._auto_detect_scaling_factor()
 
         # Hourly update listener (for max values)
         self._listeners.append(

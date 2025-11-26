@@ -3,7 +3,6 @@ CONF_SOURCE_SENSOR = "source_sensor"
 CONF_MONTHLY_RESET = "monthly_reset"
 CONF_NUM_MAX_VALUES = "num_max_values"
 CONF_BINARY_SENSOR = "binary_sensor"
-CONF_POWER_SCALING_FACTOR = "power_scaling_factor"
 
 # Constants for calculations
 SECONDS_PER_HOUR = 3600

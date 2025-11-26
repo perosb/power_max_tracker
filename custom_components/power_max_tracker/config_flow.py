@@ -8,7 +8,6 @@ from .const import (
     CONF_MONTHLY_RESET,
     CONF_NUM_MAX_VALUES,
     CONF_BINARY_SENSOR,
-    CONF_POWER_SCALING_FACTOR,
 )
 
 
@@ -79,14 +78,6 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_BINARY_SENSOR: selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="binary_sensor")
             ),
-            CONF_POWER_SCALING_FACTOR: selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=0.01,
-                    max=10000.0,
-                    step=0.1,
-                    mode=selector.NumberSelectorMode.BOX,
-                )
-            ),
         }
 
     def _get_reconfigure_schema(self, entry):
@@ -102,10 +93,6 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Required(
                 CONF_NUM_MAX_VALUES, default=entry.data.get(CONF_NUM_MAX_VALUES, 2)
             ): fields[CONF_NUM_MAX_VALUES],
-            vol.Optional(
-                CONF_POWER_SCALING_FACTOR,
-                default=entry.data.get(CONF_POWER_SCALING_FACTOR, 1.0),
-            ): fields[CONF_POWER_SCALING_FACTOR],
         }
 
         # Only add binary sensor field with default if it has a value
@@ -140,9 +127,6 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_NUM_MAX_VALUES
                 ],
                 vol.Optional(CONF_BINARY_SENSOR): fields[CONF_BINARY_SENSOR],
-                vol.Optional(CONF_POWER_SCALING_FACTOR, default=1.0): fields[
-                    CONF_POWER_SCALING_FACTOR
-                ],
             }
         )
 
@@ -152,7 +136,6 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_SOURCE_SENSOR: data[CONF_SOURCE_SENSOR],
             CONF_MONTHLY_RESET: data.get(CONF_MONTHLY_RESET, False),
             CONF_NUM_MAX_VALUES: int(data.get(CONF_NUM_MAX_VALUES, 2)),
-            CONF_POWER_SCALING_FACTOR: float(data.get(CONF_POWER_SCALING_FACTOR, 1.0)),
             CONF_BINARY_SENSOR: data.get(CONF_BINARY_SENSOR),
         }
 

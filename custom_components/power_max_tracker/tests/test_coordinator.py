@@ -302,6 +302,68 @@ class TestPowerMaxCoordinator:
         # Entity should not be added
         assert mock_entity not in coordinator.entities
 
+    def test_auto_detect_scaling_factor_kw_unit(self, coordinator):
+        """Test auto-detecting scaling factor for kW unit."""
+        coordinator.source_sensor_entity_id = "sensor.test_power"
+
+        # Mock the state with kW unit
+        mock_state = MagicMock()
+        mock_state.attributes = {"unit_of_measurement": "kW"}
+        coordinator.hass.states.get.return_value = mock_state
+
+        coordinator._auto_detect_scaling_factor()
+
+        assert coordinator.power_scaling_factor == 1000.0
+
+    def test_auto_detect_scaling_factor_watt_unit(self, coordinator):
+        """Test auto-detecting scaling factor for W unit."""
+        coordinator.source_sensor_entity_id = "sensor.test_power"
+
+        # Mock the state with W unit
+        mock_state = MagicMock()
+        mock_state.attributes = {"unit_of_measurement": "W"}
+        coordinator.hass.states.get.return_value = mock_state
+
+        coordinator._auto_detect_scaling_factor()
+
+        assert coordinator.power_scaling_factor == 1.0
+
+    def test_auto_detect_scaling_factor_unknown_unit(self, coordinator):
+        """Test auto-detecting scaling factor for unknown unit."""
+        coordinator.source_sensor_entity_id = "sensor.test_power"
+
+        # Mock the state with unknown unit
+        mock_state = MagicMock()
+        mock_state.attributes = {"unit_of_measurement": "unknown"}
+        coordinator.hass.states.get.return_value = mock_state
+
+        coordinator._auto_detect_scaling_factor()
+
+        assert coordinator.power_scaling_factor == 1.0
+
+    def test_auto_detect_scaling_factor_no_unit(self, coordinator):
+        """Test auto-detecting scaling factor when no unit is available."""
+        coordinator.source_sensor_entity_id = "sensor.test_power"
+
+        # Mock the state with no unit
+        mock_state = MagicMock()
+        mock_state.attributes = {}
+        coordinator.hass.states.get.return_value = mock_state
+
+        coordinator._auto_detect_scaling_factor()
+
+        assert coordinator.power_scaling_factor == 1.0
+
+    def test_auto_detect_scaling_factor_no_source_entity(self, coordinator):
+        """Test auto-detecting scaling factor when no source entity is set."""
+        coordinator.source_sensor_entity_id = None
+        coordinator.power_scaling_factor = 1.0
+
+        coordinator._auto_detect_scaling_factor()
+
+        # Should remain unchanged
+        assert coordinator.power_scaling_factor == 1.0
+
     @pytest.mark.asyncio
     async def test_async_setup_no_stored_data(self, coordinator):
         """Test async setup with no stored data."""

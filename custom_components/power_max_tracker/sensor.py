@@ -20,7 +20,6 @@ from .const import (
     CONF_SOURCE_SENSOR,
     CONF_BINARY_SENSOR,
     CONF_MONTHLY_RESET,
-    CONF_POWER_SCALING_FACTOR,
     KILOWATT_HOURS_PER_WATT_HOUR,
     SECONDS_PER_HOUR,
 )
@@ -110,7 +109,6 @@ async def async_setup_platform(
         CONF_NUM_MAX_VALUES: num_max_values,
         CONF_MONTHLY_RESET: config.get(CONF_MONTHLY_RESET, False),
         CONF_BINARY_SENSOR: config.get(CONF_BINARY_SENSOR),
-        CONF_POWER_SCALING_FACTOR: float(config.get(CONF_POWER_SCALING_FACTOR, 1.0)),
     }
 
     # Create a unique ID
