@@ -18,6 +18,24 @@
           "binary_sensor": "Valfri binär sensor för att styra uppdateringar (uppdatera endast när 'på').",
           "power_scaling_factor": "Faktor att multiplicera källeffektavläsningar med. Använd 1000 om källsensorn ger kW istället för W."
         }
+      },
+      "reconfigure": {
+        "title": "Konfigurera om Power Max Tracker",
+        "description": "Uppdatera konfigurationen för din Power Max Tracker integration.",
+        "data": {
+          "source_sensor": "Källsensor",
+          "num_max_values": "Antal Maxvärden",
+          "monthly_reset": "Månadsåterställning",
+          "binary_sensor": "Binär Sensor (Valfri)",
+          "power_scaling_factor": "Effekt Skalningsfaktor"
+        },
+        "data_description": {
+          "source_sensor": "Välj effektgivaren att spåra (måste ge watt).",
+          "num_max_values": "Antal maximala effektvärden att spåra (1-10).",
+          "monthly_reset": "Återställ maximala värden till 0 den 1:a varje månad.",
+          "binary_sensor": "Valfri binär sensor för att styra uppdateringar (uppdatera endast när 'på').",
+          "power_scaling_factor": "Faktor att multiplicera källeffektavläsningar med. Använd 1000 om källsensorn ger kW istället för W."
+        }
       }
     },
     "error": {
