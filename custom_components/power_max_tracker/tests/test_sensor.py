@@ -72,8 +72,7 @@ class TestMaxPowerSensor:
         assert sensor._coordinator == coordinator
         assert sensor._index == 0
 
-    @pytest.mark.asyncio
-    async def test_native_value(self, coordinator):
+    def test_native_value(self, coordinator):
         """Test native value property."""
         sensor = MaxPowerSensor(coordinator, 0, "Test Max 1")
 
@@ -85,8 +84,7 @@ class TestMaxPowerSensor:
 
         assert sensor.native_value == 5.0
 
-    @pytest.mark.asyncio
-    async def test_extra_state_attributes(self, coordinator):
+    def test_extra_state_attributes(self, coordinator):
         """Test extra state attributes."""
         sensor = MaxPowerSensor(coordinator, 0, "Test Max 1")
 
@@ -110,16 +108,14 @@ class TestSourcePowerSensor:
         assert sensor._coordinator == coordinator
         assert sensor._entry == mock_config_entry
 
-    @pytest.mark.asyncio
-    async def test_native_value_no_source_entity(self, coordinator, mock_config_entry):
+    def test_native_value_no_source_entity(self, coordinator, mock_config_entry):
         """Test native value when no source entity is set."""
         sensor = SourcePowerSensor(coordinator, mock_config_entry)
 
         # source_sensor_entity_id is None by default
         assert sensor.native_value == 0.0
 
-    @pytest.mark.asyncio
-    async def test_native_value_with_source_entity(self, coordinator, mock_config_entry, mock_hass):
+    def test_native_value_with_source_entity(self, coordinator, mock_config_entry, mock_hass):
         """Test native value with source entity set."""
         sensor = SourcePowerSensor(coordinator, mock_config_entry)
         coordinator.source_sensor_entity_id = "sensor.test_power"
@@ -135,8 +131,7 @@ class TestSourcePowerSensor:
 
         assert sensor.native_value == 1500.5
 
-    @pytest.mark.asyncio
-    async def test_extra_state_attributes(self, coordinator, mock_config_entry):
+    def test_extra_state_attributes(self, coordinator, mock_config_entry):
         """Test extra state attributes."""
         sensor = SourcePowerSensor(coordinator, mock_config_entry)
 
@@ -156,8 +151,7 @@ class TestHourlyAveragePowerSensor:
         assert sensor._coordinator == coordinator
         assert sensor._entry == mock_config_entry
 
-    @pytest.mark.asyncio
-    async def test_native_value_no_data(self, coordinator, mock_config_entry):
+    def test_native_value_no_data(self, coordinator, mock_config_entry):
         """Test native value with no data."""
         sensor = HourlyAveragePowerSensor(coordinator, mock_config_entry)
 
@@ -176,8 +170,7 @@ class TestAverageMaxPowerSensor:
         assert sensor._coordinator == coordinator
         assert sensor._entry == mock_config_entry
 
-    @pytest.mark.asyncio
-    async def test_native_value(self, coordinator, mock_config_entry):
+    def test_native_value(self, coordinator, mock_config_entry):
         """Test native value calculation."""
         sensor = AverageMaxPowerSensor(coordinator, mock_config_entry)
 
@@ -186,8 +179,7 @@ class TestAverageMaxPowerSensor:
 
         assert sensor.native_value == 4.0  # Average of max values
 
-    @pytest.mark.asyncio
-    async def test_native_value_empty_list(self, coordinator, mock_config_entry):
+    def test_native_value_empty_list(self, coordinator, mock_config_entry):
         """Test native value with empty previous month values."""
         sensor = AverageMaxPowerSensor(coordinator, mock_config_entry)
 
@@ -195,8 +187,7 @@ class TestAverageMaxPowerSensor:
 
         assert sensor.native_value == 0.0
 
-    @pytest.mark.asyncio
-    async def test_extra_state_attributes(self, coordinator, mock_config_entry):
+    def test_extra_state_attributes(self, coordinator, mock_config_entry):
         """Test extra state attributes."""
         sensor = AverageMaxPowerSensor(coordinator, mock_config_entry)
 

@@ -4,7 +4,6 @@ Note: These tests require a full Home Assistant development environment with all
 They will fail when run in a standalone environment without HA installed.
 """
 
-import asyncio
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
@@ -122,7 +121,8 @@ class TestPowerMaxTrackerConfigFlow:
             data=expected_data
         )
 
-    def test_create_entry(self, mock_hass):
+    @pytest.mark.asyncio
+    async def test_create_entry(self, mock_hass):
         """Test entry creation."""
         flow = PowerMaxTrackerConfigFlow()
         flow.hass = mock_hass
@@ -136,8 +136,15 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_POWER_SCALING_FACTOR: 1.0,
         }
 
+        # Mock the async methods
+        flow.async_set_unique_id = AsyncMock()
+        flow.async_create_entry = MagicMock(return_value={
+            "title": "Power Max Tracker (test_power-12345678)", 
+            "data": data
+        })
+
         with patch("uuid.uuid4", return_value="12345678-1234-1234-1234-123456789012"):
-            entry = asyncio.run(flow._create_entry(data))
+            entry = await flow._create_entry(data)
 
         assert entry["title"] == "Power Max Tracker (test_power-12345678)"
         assert entry["data"] == data

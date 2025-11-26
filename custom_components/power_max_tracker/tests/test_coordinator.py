@@ -60,8 +60,7 @@ def coordinator(mock_hass, mock_config_entry):
 class TestPowerMaxCoordinator:
     """Test cases for PowerMaxCoordinator."""
 
-    @pytest.mark.asyncio
-    async def test_init(self, coordinator, mock_hass, mock_config_entry):
+    def test_init(self, coordinator, mock_hass, mock_config_entry):
         """Test coordinator initialization."""
         assert coordinator.hass == mock_hass
         assert coordinator.entry == mock_config_entry
@@ -76,16 +75,14 @@ class TestPowerMaxCoordinator:
         assert coordinator.entities == []
         assert coordinator._listeners == []
 
-    @pytest.mark.asyncio
-    async def test_watts_to_kilowatts_conversion(self, coordinator):
+    def test_watts_to_kilowatts_conversion(self, coordinator):
         """Test watts to kilowatts conversion."""
         assert coordinator._watts_to_kilowatts(1000) == 1.0
         assert coordinator._watts_to_kilowatts(500) == 0.5
         assert coordinator._watts_to_kilowatts(0) == 0.0
         assert coordinator._watts_to_kilowatts(2500) == 2.5
 
-    @pytest.mark.asyncio
-    async def test_update_max_values_with_timestamp_new_value(self, coordinator):
+    def test_update_max_values_with_timestamp_new_value(self, coordinator):
         """Test updating max values with a new value."""
         now = datetime.now()
 
@@ -107,8 +104,7 @@ class TestPowerMaxCoordinator:
         assert coordinator.max_values == [7.0, 5.0]
         assert coordinator.max_values_timestamps == [now, now]
 
-    @pytest.mark.asyncio
-    async def test_update_max_values_with_timestamp_duplicate_value(self, coordinator):
+    def test_update_max_values_with_timestamp_duplicate_value(self, coordinator):
         """Test updating max values with duplicate values."""
         now = datetime.now()
 
@@ -121,8 +117,7 @@ class TestPowerMaxCoordinator:
         assert result is False  # No change because value already exists
         assert coordinator.max_values == [5.0, 3.0]
 
-    @pytest.mark.asyncio
-    async def test_update_max_values_with_timestamp_no_change(self, coordinator):
+    def test_update_max_values_with_timestamp_no_change(self, coordinator):
         """Test updating max values with a value that doesn't make the top N."""
         now = datetime.now()
 
@@ -208,8 +203,7 @@ class TestPowerMaxCoordinator:
 
         assert result is None
 
-    @pytest.mark.asyncio
-    async def test_is_valid_entity_valid(self, coordinator):
+    def test_is_valid_entity_valid(self, coordinator):
         """Test entity validation with valid entity."""
         mock_entity = MagicMock()
         mock_entity._attr_unique_id = "test_max_values_1"
@@ -218,8 +212,7 @@ class TestPowerMaxCoordinator:
 
         assert coordinator._is_valid_entity(mock_entity) is True
 
-    @pytest.mark.asyncio
-    async def test_is_valid_entity_invalid(self, coordinator):
+    def test_is_valid_entity_invalid(self, coordinator):
         """Test entity validation with invalid entity."""
         # Test None entity
         assert coordinator._is_valid_entity(None) is False
@@ -232,13 +225,11 @@ class TestPowerMaxCoordinator:
         mock_entity.async_write_ha_state = None
         assert coordinator._is_valid_entity(mock_entity) is False
 
-    @pytest.mark.asyncio
-    async def test_can_update_max_values_no_binary_sensor(self, coordinator):
+    def test_can_update_max_values_no_binary_sensor(self, coordinator):
         """Test max values update check without binary sensor."""
         assert coordinator._can_update_max_values() is True
 
-    @pytest.mark.asyncio
-    async def test_can_update_max_values_with_binary_sensor_on(self, coordinator, mock_hass):
+    def test_can_update_max_values_with_binary_sensor_on(self, coordinator, mock_hass):
         """Test max values update check with binary sensor in 'on' state."""
         coordinator.binary_sensor = "binary_sensor.test"
 
@@ -248,8 +239,7 @@ class TestPowerMaxCoordinator:
 
         assert coordinator._can_update_max_values() is True
 
-    @pytest.mark.asyncio
-    async def test_can_update_max_values_with_binary_sensor_off(self, coordinator, mock_hass):
+    def test_can_update_max_values_with_binary_sensor_off(self, coordinator, mock_hass):
         """Test max values update check with binary sensor in 'off' state."""
         coordinator.binary_sensor = "binary_sensor.test"
 
@@ -259,8 +249,7 @@ class TestPowerMaxCoordinator:
 
         assert coordinator._can_update_max_values() is False
 
-    @pytest.mark.asyncio
-    async def test_can_update_max_values_with_binary_sensor_unavailable(
+    def test_can_update_max_values_with_binary_sensor_unavailable(
         self, coordinator, mock_hass
     ):
         """Test max values update check with unavailable binary sensor."""
@@ -314,8 +303,7 @@ class TestPowerMaxCoordinator:
 
         mock_store.async_save.assert_called_once_with(expected_data)
 
-    @pytest.mark.asyncio
-    async def test_add_entity_valid_source(self, coordinator):
+    def test_add_entity_valid_source(self, coordinator):
         """Test adding a valid source entity."""
         mock_entity = MagicMock()
         mock_entity._attr_unique_id = "test_source"
@@ -327,8 +315,7 @@ class TestPowerMaxCoordinator:
         assert mock_entity in coordinator.entities
         assert coordinator.source_sensor_entity_id == "sensor.test_power"
 
-    @pytest.mark.asyncio
-    async def test_add_entity_valid_max_values(self, coordinator):
+    def test_add_entity_valid_max_values(self, coordinator):
         """Test adding a valid max values entity."""
         mock_entity = MagicMock()
         mock_entity._attr_unique_id = "test_max_values_1"
@@ -340,8 +327,7 @@ class TestPowerMaxCoordinator:
         assert mock_entity in coordinator.entities
         assert coordinator.source_sensor_entity_id is None  # Not a source entity
 
-    @pytest.mark.asyncio
-    async def test_add_entity_invalid(self, coordinator):
+    def test_add_entity_invalid(self, coordinator):
         """Test adding an invalid entity."""
         mock_entity = MagicMock()
         # Invalid unique_id - doesn't match expected patterns
@@ -577,8 +563,7 @@ class TestPowerMaxCoordinator:
         # Should not have reset
         assert coordinator.max_values == [5.0, 3.0]
 
-    @pytest.mark.asyncio
-    async def test_async_unload(self, coordinator):
+    def test_async_unload(self, coordinator):
         """Test unloading the coordinator."""
         mock_listener1 = MagicMock()
         mock_listener2 = MagicMock()
