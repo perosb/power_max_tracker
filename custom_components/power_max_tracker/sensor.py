@@ -20,6 +20,7 @@ from .const import (
     CONF_SOURCE_SENSOR,
     CONF_BINARY_SENSOR,
     CONF_MONTHLY_RESET,
+    CONF_POWER_SCALING_FACTOR,
     KILOWATT_HOURS_PER_WATT_HOUR,
     SECONDS_PER_HOUR,
 )
@@ -109,6 +110,7 @@ async def async_setup_platform(
         CONF_NUM_MAX_VALUES: num_max_values,
         CONF_MONTHLY_RESET: config.get(CONF_MONTHLY_RESET, False),
         CONF_BINARY_SENSOR: config.get(CONF_BINARY_SENSOR),
+        CONF_POWER_SCALING_FACTOR: float(config.get(CONF_POWER_SCALING_FACTOR, 1.0)),
     }
 
     # Create a unique ID
@@ -262,7 +264,9 @@ class SourcePowerSensor(GatedSensorEntity):
                 ):
                     try:
                         value = float(source_state.state)
-                        self._state = max(0.0, value)  # Ignore negative values
+                        self._state = (
+                            max(0.0, value) * self._coordinator.power_scaling_factor
+                        )  # Apply scaling factor
                     except (ValueError, TypeError):
                         _LOGGER.warning(
                             f"Invalid state for {self._source_sensor}: {source_state.state}"
@@ -401,6 +405,9 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
                         current_power = float(source_state.state)
                         if current_power < 0:
                             current_power = 0.0
+                        current_power *= (
+                            self._coordinator.power_scaling_factor
+                        )  # Apply scaling factor
                         delta_seconds = (now - self._last_time).total_seconds()
                         if delta_seconds > 0:
                             # Average power in W

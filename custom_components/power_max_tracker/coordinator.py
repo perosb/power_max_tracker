@@ -12,6 +12,7 @@ from .const import (
     CONF_MONTHLY_RESET,
     CONF_NUM_MAX_VALUES,
     CONF_BINARY_SENSOR,
+    CONF_POWER_SCALING_FACTOR,
     SECONDS_PER_HOUR,
     WATTS_TO_KILOWATTS,
     STORAGE_VERSION,
@@ -45,6 +46,9 @@ class PowerMaxCoordinator:
             self.monthly_reset = entry.data.get(CONF_MONTHLY_RESET, False)
             self.num_max_values = int(entry.data.get(CONF_NUM_MAX_VALUES, 2))
             self.binary_sensor = entry.data.get(CONF_BINARY_SENSOR, None)
+            self.power_scaling_factor = float(
+                entry.data.get(CONF_POWER_SCALING_FACTOR, 1.0)
+            )
             self.unique_id = entry.entry_id
         else:
             # YAML mode
@@ -52,6 +56,9 @@ class PowerMaxCoordinator:
             self.monthly_reset = yaml_config.get(CONF_MONTHLY_RESET, False)
             self.num_max_values = int(yaml_config.get(CONF_NUM_MAX_VALUES, 2))
             self.binary_sensor = yaml_config.get(CONF_BINARY_SENSOR, None)
+            self.power_scaling_factor = float(
+                yaml_config.get(CONF_POWER_SCALING_FACTOR, 1.0)
+            )
             self.unique_id = yaml_unique_id
 
         self.source_sensor_entity_id = None  # Set dynamically after entity registration
@@ -253,7 +260,10 @@ class PowerMaxCoordinator:
             and stats[self.source_sensor_entity_id]
             and stats[self.source_sensor_entity_id][0]["mean"] is not None
         ):
-            return stats[self.source_sensor_entity_id][0]["mean"]
+            return (
+                stats[self.source_sensor_entity_id][0]["mean"]
+                * self.power_scaling_factor
+            )
         else:
             _LOGGER.warning(
                 f"No mean statistics found for {self.source_sensor_entity_id} from {start_time} to {end_time}. Stats: {stats}"

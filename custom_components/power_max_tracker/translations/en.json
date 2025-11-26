@@ -1,26 +1,30 @@
 {
-  "entity": {
-    "sensor": {
-      "bf1_l_min": {
-        "name": "Flow sensor DHW (BF1)"
-      }
-    }
-  },
   "config": {
-    "title": "Power Max Tracker",
     "step": {
       "user": {
+        "title": "Power Max Tracker Configuration",
+        "description": "Configure the Power Max Tracker integration to track maximum power values.",
         "data": {
-          "password": "Password",
-          "username": "Username"
-        }
-      },
-      "reconfigure": {
-        "data": {
-          "password": "Password",
-          "username": "Username"
+          "source_sensor": "Source Sensor",
+          "num_max_values": "Number of Max Values",
+          "monthly_reset": "Monthly Reset",
+          "binary_sensor": "Binary Sensor (Optional)",
+          "power_scaling_factor": "Power Scaling Factor"
+        },
+        "data_description": {
+          "source_sensor": "Select the power sensor to track (must provide watts).",
+          "num_max_values": "Number of maximum power values to track (1-10).",
+          "monthly_reset": "Reset maximum values to 0 on the 1st of each month.",
+          "binary_sensor": "Optional binary sensor to gate updates (only update when 'on').",
+          "power_scaling_factor": "Factor to multiply source power readings by. Use 1000 if source sensor provides kW instead of W."
         }
       }
+    },
+    "error": {
+      "invalid_max_values": "Number of max values must be an integer between 1 and 10."
+    },
+    "abort": {
+      "already_configured": "Device is already configured"
     }
   }
 }
