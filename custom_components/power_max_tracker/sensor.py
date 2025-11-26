@@ -153,6 +153,10 @@ async def _setup_sensors(
     # Add average max power sensor
     average_max_sensor = AverageMaxPowerSensor(coordinator, entry)
     sensors.append(average_max_sensor)
+    # Add cost sensor only if price is configured
+    if coordinator.price_per_kw > 0:
+        cost_sensor = AverageMaxCostSensor(coordinator, entry)
+        sensors.append(cost_sensor)
     # Add SourcePowerSensor
     source_sensor = SourcePowerSensor(coordinator, entry)
     sensors.append(source_sensor)
@@ -231,6 +235,57 @@ class AverageMaxPowerSensor(SensorEntity):
         prev_values = self._coordinator.previous_month_max_values
         prev_avg = round(sum(prev_values) / len(prev_values), 2) if prev_values else 0.0
         return {"previous_month_average": prev_avg}
+
+
+class AverageMaxCostSensor(SensorEntity):
+    """Sensor for the cost of the average max hourly average power."""
+
+    def __init__(self, coordinator: PowerMaxCoordinator, entry: ConfigEntry = None):
+        """Initialize."""
+        super().__init__()
+        self._coordinator = coordinator
+        self._entry = entry
+        self._attr_name = "Average Max Hourly Average Power Cost"
+        self._attr_unique_id = f"{coordinator.unique_id}_average_max_cost"
+        self._attr_device_class = SensorDeviceClass.MONETARY
+        self._attr_state_class = (
+            None  # Monetary sensors should not use MEASUREMENT state class
+        )
+        self._attr_icon = "mdi:currency-usd"
+        self._attr_should_poll = False  # Updated via coordinator
+        self._attr_force_update = True  # Force state updates
+
+    @property
+    def native_value(self):
+        """Return the state."""
+        max_values = self._coordinator.max_values
+        if max_values and self._coordinator.price_per_kw > 0:
+            avg_power = sum(max_values) / len(max_values)
+            return round(avg_power * self._coordinator.price_per_kw, 2)
+        return 0.0
+
+    @property
+    def native_unit_of_measurement(self):
+        """Return the unit of measurement."""
+        if hasattr(self, "hass") and self.hass:
+            return self.hass.config.currency
+        return None
+
+    @property
+    def extra_state_attributes(self):
+        """Return extra attributes."""
+        prev_values = self._coordinator.previous_month_max_values
+        prev_avg = round(sum(prev_values) / len(prev_values), 2) if prev_values else 0.0
+        prev_cost = (
+            round(prev_avg * self._coordinator.price_per_kw, 2)
+            if prev_values and self._coordinator.price_per_kw > 0
+            else 0.0
+        )
+        return {
+            "previous_month_average": prev_avg,
+            "previous_month_cost": prev_cost,
+            "price_per_kw": self._coordinator.price_per_kw,
+        }
 
 
 class SourcePowerSensor(GatedSensorEntity):

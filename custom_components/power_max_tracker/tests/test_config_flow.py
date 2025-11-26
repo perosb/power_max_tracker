@@ -15,6 +15,7 @@ from custom_components.power_max_tracker.const import (
     CONF_MONTHLY_RESET,
     CONF_NUM_MAX_VALUES,
     CONF_BINARY_SENSOR,
+    CONF_PRICE_PER_KW,
 )
 
 
@@ -68,6 +69,7 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_MONTHLY_RESET: True,
             CONF_NUM_MAX_VALUES: 3,
             CONF_BINARY_SENSOR: "binary_sensor.test",
+            CONF_PRICE_PER_KW: 0.0,
         }
         flow.async_create_entry.assert_called_once_with(
             title="Power Max Tracker (test_power-12345678)",
@@ -112,6 +114,7 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_MONTHLY_RESET: False,
             CONF_NUM_MAX_VALUES: 2,
             CONF_BINARY_SENSOR: None,
+            CONF_PRICE_PER_KW: 0.0,
         }
         flow.async_create_entry.assert_called_once_with(
             title="Power Max Tracker (test_power-12345678)",
@@ -179,6 +182,7 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_MONTHLY_RESET: True,
             CONF_NUM_MAX_VALUES: 5,
             CONF_BINARY_SENSOR: "binary_sensor.new",
+            CONF_PRICE_PER_KW: 0.0,
         }
         flow.async_update_reload_and_abort.assert_called_once_with(
             mock_entry, data=expected_data
