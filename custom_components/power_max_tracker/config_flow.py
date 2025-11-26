@@ -83,7 +83,7 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 selector.NumberSelectorConfig(
                     min=0.0,
                     max=100.0,
-                    step=0.01,
+                    step=0.001,
                     mode=selector.NumberSelectorMode.BOX,
                 )
             ),

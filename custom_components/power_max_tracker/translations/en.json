@@ -42,7 +42,8 @@
       "invalid_max_values": "Number of max values must be an integer between 1 and 10."
     },
     "abort": {
-      "already_configured": "Device is already configured"
+      "already_configured": "Device is already configured",
+      "reconfigure_successful": "Reconfiguration was successful."
     }
   }
 }
