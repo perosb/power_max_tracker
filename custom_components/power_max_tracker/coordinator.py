@@ -12,6 +12,7 @@ from .const import (
     CONF_MONTHLY_RESET,
     CONF_NUM_MAX_VALUES,
     CONF_BINARY_SENSOR,
+    CONF_PRICE_PER_KW,
     SECONDS_PER_HOUR,
     WATTS_TO_KILOWATTS,
     STORAGE_VERSION,
@@ -45,6 +46,7 @@ class PowerMaxCoordinator:
             self.monthly_reset = entry.data.get(CONF_MONTHLY_RESET, False)
             self.num_max_values = int(entry.data.get(CONF_NUM_MAX_VALUES, 2))
             self.binary_sensor = entry.data.get(CONF_BINARY_SENSOR, None)
+            self.price_per_kw = float(entry.data.get(CONF_PRICE_PER_KW, 0.0))
             self.unique_id = entry.entry_id
         else:
             # YAML mode
@@ -52,6 +54,7 @@ class PowerMaxCoordinator:
             self.monthly_reset = yaml_config.get(CONF_MONTHLY_RESET, False)
             self.num_max_values = int(yaml_config.get(CONF_NUM_MAX_VALUES, 2))
             self.binary_sensor = yaml_config.get(CONF_BINARY_SENSOR, None)
+            self.price_per_kw = float(yaml_config.get(CONF_PRICE_PER_KW, 0.0))
             self.unique_id = yaml_unique_id
 
         # Always start with default scaling factor - auto-detection will handle the rest
@@ -80,6 +83,7 @@ class PowerMaxCoordinator:
                 entity._attr_unique_id.endswith("_source")
                 or entity._attr_unique_id.endswith("_hourly_average_power")
                 or entity._attr_unique_id.endswith("_average_max")
+                or entity._attr_unique_id.endswith("_average_max_cost")
                 or any(
                     entity._attr_unique_id.endswith(f"_max_values_{i + 1}")
                     for i in range(self.num_max_values)
@@ -219,6 +223,7 @@ class PowerMaxCoordinator:
                 entity._attr_unique_id.endswith("_source")
                 or entity._attr_unique_id.endswith("_hourly_average_power")
                 or entity._attr_unique_id.endswith("_average_max")
+                or entity._attr_unique_id.endswith("_average_max_cost")
                 or any(
                     entity._attr_unique_id.endswith(f"_max_values_{i + 1}")
                     for i in range(self.num_max_values)

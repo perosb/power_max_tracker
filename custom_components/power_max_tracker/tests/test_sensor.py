@@ -13,6 +13,7 @@ from custom_components.power_max_tracker.sensor import (
     SourcePowerSensor,
     HourlyAveragePowerSensor,
     AverageMaxPowerSensor,
+    AverageMaxCostSensor,
     async_setup_entry,
     async_setup_platform,
 )
@@ -79,7 +80,9 @@ class TestSourcePowerSensor:
         # source_sensor_entity_id is None by default
         assert sensor.native_value == 0.0
 
-    def test_native_value_with_source_entity(self, coordinator, mock_config_entry, mock_hass):
+    def test_native_value_with_source_entity(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
         """Test native value with source entity set."""
         sensor = SourcePowerSensor(coordinator, mock_config_entry)
         coordinator.source_sensor_entity_id = "sensor.test_power"
@@ -164,6 +167,104 @@ class TestAverageMaxPowerSensor:
         assert attributes["previous_month_average"] == 4.0
 
 
+class TestAverageMaxCostSensor:
+    """Test cases for AverageMaxCostSensor."""
+
+    @pytest.mark.asyncio
+    async def test_init(self, coordinator, mock_config_entry):
+        """Test average max cost sensor initialization."""
+        sensor = AverageMaxCostSensor(coordinator, mock_config_entry)
+
+        assert sensor._coordinator == coordinator
+        assert sensor._entry == mock_config_entry
+        assert sensor._attr_device_class == "monetary"
+        assert (
+            sensor._attr_state_class is None
+        )  # Monetary sensors don't use MEASUREMENT
+        assert sensor._attr_icon == "mdi:currency-usd"
+
+    def test_native_value_with_price_and_max_values(
+        self, coordinator, mock_config_entry
+    ):
+        """Test native value calculation with price and max values."""
+        sensor = AverageMaxCostSensor(coordinator, mock_config_entry)
+
+        # Set up coordinator data
+        coordinator.max_values = [5.0, 3.0]  # Average = 4.0
+        coordinator.price_per_kw = 0.15  # 15 cents per kW
+
+        # Expected: 4.0 * 0.15 = 0.6, rounded to 2 decimals = 0.6
+        assert sensor.native_value == 0.6
+
+    def test_native_value_no_max_values(self, coordinator, mock_config_entry):
+        """Test native value with no max values."""
+        sensor = AverageMaxCostSensor(coordinator, mock_config_entry)
+
+        coordinator.max_values = []
+        coordinator.price_per_kw = 0.15
+
+        assert sensor.native_value == 0.0
+
+    def test_native_value_zero_price(self, coordinator, mock_config_entry):
+        """Test native value with zero price."""
+        sensor = AverageMaxCostSensor(coordinator, mock_config_entry)
+
+        coordinator.max_values = [5.0, 3.0]
+        coordinator.price_per_kw = 0.0
+
+        assert sensor.native_value == 0.0
+
+    def test_native_unit_of_measurement_with_hass(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Test native unit of measurement with hass available."""
+        sensor = AverageMaxCostSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+        mock_hass.config.currency = "USD"
+
+        assert sensor.native_unit_of_measurement == "USD"
+
+    def test_native_unit_of_measurement_no_hass(self, coordinator, mock_config_entry):
+        """Test native unit of measurement without hass."""
+        sensor = AverageMaxCostSensor(coordinator, mock_config_entry)
+
+        assert sensor.native_unit_of_measurement is None
+
+    def test_extra_state_attributes(self, coordinator, mock_config_entry):
+        """Test extra state attributes."""
+        sensor = AverageMaxCostSensor(coordinator, mock_config_entry)
+
+        # Set up coordinator data
+        coordinator.max_values = [5.0, 3.0]  # Current average = 4.0
+        coordinator.previous_month_max_values = [6.0, 4.0]  # Previous average = 5.0
+        coordinator.price_per_kw = 0.15
+
+        attributes = sensor.extra_state_attributes
+
+        assert "previous_month_average" in attributes
+        assert attributes["previous_month_average"] == 5.0  # (6.0 + 4.0) / 2
+        assert "previous_month_cost" in attributes
+        assert attributes["previous_month_cost"] == 0.75  # 5.0 * 0.15
+        assert "price_per_kw" in attributes
+        assert attributes["price_per_kw"] == 0.15
+
+    def test_extra_state_attributes_no_previous_data(
+        self, coordinator, mock_config_entry
+    ):
+        """Test extra state attributes with no previous month data."""
+        sensor = AverageMaxCostSensor(coordinator, mock_config_entry)
+
+        coordinator.max_values = [5.0, 3.0]
+        coordinator.previous_month_max_values = []
+        coordinator.price_per_kw = 0.15
+
+        attributes = sensor.extra_state_attributes
+
+        assert attributes["previous_month_average"] == 0.0
+        assert attributes["previous_month_cost"] == 0.0
+        assert attributes["price_per_kw"] == 0.15
+
+
 class TestSensorSetup:
     """Test cases for sensor setup functions."""
 
@@ -174,12 +275,18 @@ class TestSensorSetup:
         mock_hass.data[DOMAIN] = {mock_config_entry.entry_id: coordinator}
 
         # Mock the sensor setup
-        with patch("custom_components.power_max_tracker.sensor._setup_sensors") as mock_setup_sensors:
+        with patch(
+            "custom_components.power_max_tracker.sensor._setup_sensors"
+        ) as mock_setup_sensors:
             async_add_entities = AsyncMock()
-            result = await async_setup_entry(mock_hass, mock_config_entry, async_add_entities)
+            result = await async_setup_entry(
+                mock_hass, mock_config_entry, async_add_entities
+            )
 
             assert result is None  # async_setup_entry doesn't return anything
-            mock_setup_sensors.assert_called_once_with(mock_hass, coordinator, mock_config_entry, async_add_entities)
+            mock_setup_sensors.assert_called_once_with(
+                mock_hass, coordinator, mock_config_entry, async_add_entities
+            )
 
     @pytest.mark.asyncio
     async def test_async_setup_platform(self, mock_hass, coordinator):
@@ -192,13 +299,19 @@ class TestSensorSetup:
         }
 
         # Mock the coordinator creation and setup
-        with patch("custom_components.power_max_tracker.sensor.PowerMaxCoordinator") as mock_coordinator_class:
+        with patch(
+            "custom_components.power_max_tracker.sensor.PowerMaxCoordinator"
+        ) as mock_coordinator_class:
             mock_coordinator_class.return_value = coordinator
             coordinator.async_setup = AsyncMock()
 
             # Mock the sensor setup
-            with patch("custom_components.power_max_tracker.sensor._setup_sensors") as mock_setup_sensors:
-                result = await async_setup_platform(mock_hass, config, MagicMock(), None)
+            with patch(
+                "custom_components.power_max_tracker.sensor._setup_sensors"
+            ) as mock_setup_sensors:
+                result = await async_setup_platform(
+                    mock_hass, config, MagicMock(), None
+                )
 
                 assert result is True
                 mock_coordinator_class.assert_called_once()
