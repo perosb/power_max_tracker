@@ -15,7 +15,6 @@ from custom_components.power_max_tracker.const import (
     CONF_MONTHLY_RESET,
     CONF_NUM_MAX_VALUES,
     CONF_BINARY_SENSOR,
-    CONF_POWER_SCALING_FACTOR,
 )
 
 
@@ -53,7 +52,6 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_MONTHLY_RESET: True,
             CONF_NUM_MAX_VALUES: 3,
             CONF_BINARY_SENSOR: "binary_sensor.test",
-            CONF_POWER_SCALING_FACTOR: 0.5,
         }
 
         # Mock async_set_unique_id and async_create_entry
@@ -70,7 +68,6 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_MONTHLY_RESET: True,
             CONF_NUM_MAX_VALUES: 3,
             CONF_BINARY_SENSOR: "binary_sensor.test",
-            CONF_POWER_SCALING_FACTOR: 0.5,
         }
         flow.async_create_entry.assert_called_once_with(
             title="Power Max Tracker (test_power-12345678)",
@@ -114,7 +111,6 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_SOURCE_SENSOR: "sensor.test_power",
             CONF_MONTHLY_RESET: False,
             CONF_NUM_MAX_VALUES: 2,
-            CONF_POWER_SCALING_FACTOR: 1.0,
             CONF_BINARY_SENSOR: None,
         }
         flow.async_create_entry.assert_called_once_with(
@@ -134,7 +130,6 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_MONTHLY_RESET: True,
             CONF_NUM_MAX_VALUES: 3,
             CONF_BINARY_SENSOR: "binary_sensor.test",
-            CONF_POWER_SCALING_FACTOR: 1.0,
         }
 
         # Mock the async methods
@@ -163,7 +158,6 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_MONTHLY_RESET: False,
             CONF_NUM_MAX_VALUES: 2,
             CONF_BINARY_SENSOR: None,
-            CONF_POWER_SCALING_FACTOR: 1.0,
         }
         flow._get_reconfigure_entry = MagicMock(return_value=mock_entry)
 
@@ -172,7 +166,6 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_MONTHLY_RESET: True,
             CONF_NUM_MAX_VALUES: 5,
             CONF_BINARY_SENSOR: "binary_sensor.new",
-            CONF_POWER_SCALING_FACTOR: 2.0,
         }
 
         # Mock async_update_reload_and_abort
@@ -186,7 +179,6 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_MONTHLY_RESET: True,
             CONF_NUM_MAX_VALUES: 5,
             CONF_BINARY_SENSOR: "binary_sensor.new",
-            CONF_POWER_SCALING_FACTOR: 2.0,
         }
         flow.async_update_reload_and_abort.assert_called_once_with(
             mock_entry, data=expected_data
@@ -249,7 +241,6 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_MONTHLY_RESET: True,
             CONF_NUM_MAX_VALUES: 3,
             CONF_BINARY_SENSOR: "binary_sensor.test",
-            CONF_POWER_SCALING_FACTOR: 2.5,
         }
 
         schema = flow._get_reconfigure_schema(mock_entry)
@@ -270,7 +261,6 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_MONTHLY_RESET: True,
             CONF_NUM_MAX_VALUES: 3,
             CONF_BINARY_SENSOR: None,  # Not configured
-            CONF_POWER_SCALING_FACTOR: 2.5,
         }
 
         schema = flow._get_reconfigure_schema(mock_entry)

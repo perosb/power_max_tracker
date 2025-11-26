@@ -14,7 +14,7 @@ The **Power Max Tracker** integration for Home Assistant tracks the maximum hour
 - **Binary Sensor Gating**: Only updates when the binary sensor (if configured) is `"on"`.
 - **Monthly Reset**: Optionally resets `max_values` to `0` on the 1st of each month.
 - **Multiple Config Entries**: Supports multiple source sensors with separate max value tracking.
-- **Power Scaling Factor**: Optionally multiply source power readings by a scaling factor (0.01–10000.0) for calibration or unit conversion (e.g., set to 1000 if source sensor provides kW instead of W).
+- **Power Scaling Factor**: Automatically detected based on the source sensor's unit_of_measurement (W/kW). No manual configuration required.
 - **Services**: Provides `power_max_tracker.update_max_values` to recalculate max values from midnight, and `power_max_tracker.reset_max_values` to update max values to the current month's maximum so far.
 
 ## Installation
@@ -39,7 +39,7 @@ Add the integration via the Home Assistant UI or `configuration.yaml`.
    - **Number of Max Values**: Number of max power sensors (1-10, default 2).
    - **Monthly Reset**: Reset max values on the 1st of each month.
    - **Binary Sensor**: Optional binary sensor to gate updates.
-   - **Power Scaling Factor**: Factor to multiply source power readings by (0.01-10000.0, default 1.0). Set to 1000 if source sensor provides kW instead of W.
+   - **Power Scaling Factor**: **Automatically detected** based on source sensor's unit_of_measurement. No manual configuration needed.
 
 ### YAML Configuration
 Add to your `configuration.yaml` under the `sensor` section:
@@ -61,7 +61,7 @@ sensor:
 - `num_max_values` (optional, default: 2): Number of max power sensors (1–10).
 - `monthly_reset` (optional, default: `false`): Reset max values to `0` on the 1st of each month.
 - `binary_sensor` (optional): A binary sensor (e.g., `binary_sensor.power_enabled`) to gate updates; only updates when `"on"`.
-- `power_scaling_factor` (optional, default: 1.0): Factor to multiply source power readings by (0.01–10000.0). Use 1000 if source sensor provides kW instead of W.
+- `power_scaling_factor` (optional, default: 1.0): **Deprecated**. Scaling factor is now automatically detected based on source sensor's unit_of_measurement.
 
 ### Example Binary Sensor Template
 If you want to gate the power tracking based on time (e.g., only during high peak hours in certain months), create a template binary sensor in your `configuration.yaml` and reference it in the `binary_sensor` option. Here's an example that activates during weekdays (Mon-Fri) from 7 AM to 8 PM in the months of November through March:
@@ -101,7 +101,7 @@ sensor:
 - **Updates**: Max sensors update at 1 minute past each hour or after calling services. The source and hourly average sensors update in real-time when the binary sensor is `"on"`, with additional periodic updates for the hourly average sensor.
 
 ## Important Notes
-- **Source Sensor Units**: The integration expects the source sensor to provide power in watts (W). If your source sensor provides kW, set `power_scaling_factor` to 1000 to convert to W.
+- **Source Sensor Units**: The integration automatically detects whether the source sensor provides power in watts (W) or kilowatts (kW) based on the sensor's unit_of_measurement attribute. No manual configuration is required.
 - **Renaming Source Sensor**: If the `source_sensor` is renamed (e.g., from `sensor.power_sensor` to `sensor.new_power_sensor`), the integration will stop tracking it. Update the configuration with the new entity ID and restart Home Assistant to restore functionality.
 
 ## License

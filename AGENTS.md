@@ -10,6 +10,10 @@ This Home Assistant custom component was developed with assistance from AI agent
   - Implementing persistence mechanisms for sensor state
   - Optimizing code for performance and correctness
   - Providing explanations and suggestions for Home Assistant integration patterns
+  - Implementing automatic power scaling factor detection based on source sensor units
+  - Removing manual configuration options to simplify user experience
+  - Adding comprehensive test coverage for new features
+  - Enhancing user experience by eliminating manual configuration requirements
 
 ## Development Tools
 
