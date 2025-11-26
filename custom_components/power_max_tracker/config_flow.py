@@ -1,7 +1,6 @@
 import uuid
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.const import CONF_ENTITY_ID
 from homeassistant.helpers import selector
 from .const import (
     DOMAIN,
@@ -9,6 +8,7 @@ from .const import (
     CONF_MONTHLY_RESET,
     CONF_NUM_MAX_VALUES,
     CONF_BINARY_SENSOR,
+    CONF_POWER_SCALING_FACTOR,
 )
 
 
@@ -25,11 +25,8 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_show_form(
                     step_id="user",
                     data_schema=self._get_schema(),
-                    errors={
-                        CONF_NUM_MAX_VALUES: "Number of max values must be an integer between 1 and 10"
-                    },
+                    errors={"base": "invalid_max_values"},
                 )
-
             return self._create_entry(user_input)
 
         return self.async_show_form(
@@ -64,6 +61,16 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_BINARY_SENSOR): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="binary_sensor")
                 ),
+                vol.Optional(
+                    CONF_POWER_SCALING_FACTOR, default=1.0
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0.01,
+                        max=10000.0,
+                        step=0.1,
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
+                ),
             }
         )
 
@@ -73,6 +80,7 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_SOURCE_SENSOR: data[CONF_SOURCE_SENSOR],
             CONF_MONTHLY_RESET: data.get(CONF_MONTHLY_RESET, False),
             CONF_NUM_MAX_VALUES: int(data.get(CONF_NUM_MAX_VALUES, 2)),
+            CONF_POWER_SCALING_FACTOR: float(data.get(CONF_POWER_SCALING_FACTOR, 1.0)),
         }
         if data.get(CONF_BINARY_SENSOR):
             normalized[CONF_BINARY_SENSOR] = data[CONF_BINARY_SENSOR]
