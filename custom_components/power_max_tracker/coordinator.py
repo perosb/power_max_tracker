@@ -231,6 +231,22 @@ class PowerMaxCoordinator:
             )
         )
 
+    @property
+    def average_max_value(self):
+        """Return the average of all max values."""
+        if self.max_values:
+            return sum(self.max_values) / len(self.max_values)
+        return 0.0
+
+    @property
+    def previous_month_average_max_value(self):
+        """Return the average of previous month max values."""
+        if self.previous_month_max_values:
+            return sum(self.previous_month_max_values) / len(
+                self.previous_month_max_values
+            )
+        return 0.0
+
     def _watts_to_kilowatts(self, watts: float) -> float:
         """Convert watts to kilowatts.
 

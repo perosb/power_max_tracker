@@ -43,6 +43,51 @@ class TestPowerMaxCoordinator:
         assert coordinator._watts_to_kilowatts(0) == 0.0
         assert coordinator._watts_to_kilowatts(2500) == 2.5
 
+    def test_average_max_value_empty_list(self, coordinator):
+        """Test average_max_value property with empty max_values list."""
+        # Default coordinator has empty max_values [0.0, 0.0], but let's test with truly empty
+        coordinator.max_values = []
+        assert coordinator.average_max_value == 0.0
+
+    def test_average_max_value_single_value(self, coordinator):
+        """Test average_max_value property with single value."""
+        coordinator.max_values = [5.0]
+        assert coordinator.average_max_value == 5.0
+
+    def test_average_max_value_multiple_values(self, coordinator):
+        """Test average_max_value property with multiple values."""
+        coordinator.max_values = [10.0, 6.0, 8.0]
+        assert coordinator.average_max_value == 8.0  # (10 + 6 + 8) / 3 = 8.0
+
+    def test_average_max_value_with_zeros(self, coordinator):
+        """Test average_max_value property with some zero values."""
+        coordinator.max_values = [10.0, 0.0, 5.0]
+        assert coordinator.average_max_value == 5.0  # (10 + 0 + 5) / 3 = 5.0
+
+    def test_previous_month_average_max_value_empty_list(self, coordinator):
+        """Test previous_month_average_max_value property with empty list."""
+        # Default is already empty
+        assert coordinator.previous_month_average_max_value == 0.0
+
+    def test_previous_month_average_max_value_single_value(self, coordinator):
+        """Test previous_month_average_max_value property with single value."""
+        coordinator.previous_month_max_values = [7.5]
+        assert coordinator.previous_month_average_max_value == 7.5
+
+    def test_previous_month_average_max_value_multiple_values(self, coordinator):
+        """Test previous_month_average_max_value property with multiple values."""
+        coordinator.previous_month_max_values = [12.0, 8.0, 10.0]
+        assert (
+            coordinator.previous_month_average_max_value == 10.0
+        )  # (12 + 8 + 10) / 3 = 10.0
+
+    def test_previous_month_average_max_value_with_zeros(self, coordinator):
+        """Test previous_month_average_max_value property with some zero values."""
+        coordinator.previous_month_max_values = [15.0, 0.0, 5.0]
+        assert (
+            coordinator.previous_month_average_max_value == 6.666666666666667
+        )  # (15 + 0 + 5) / 3
+
     def test_update_max_values_with_timestamp_new_value(self, coordinator):
         """Test updating max values with a new value."""
         now = datetime.now()

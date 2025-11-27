@@ -80,6 +80,15 @@ class GatedSensorEntity(SensorEntity):
         state = self.hass.states.get(self._binary_sensor)
         return state is not None and state.state == "on"
 
+    def _setup_state_change_tracking(self, source_sensor, callback):
+        """Set up state change tracking for source and binary sensors."""
+        sensors = [source_sensor]
+        if self._binary_sensor:
+            sensors.append(self._binary_sensor)
+        self.async_on_remove(
+            async_track_state_change_event(self.hass, sensors, callback)
+        )
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -224,16 +233,12 @@ class AverageMaxPowerSensor(SensorEntity):
     @property
     def native_value(self):
         """Return the state."""
-        max_values = self._coordinator.max_values
-        if max_values:
-            return round(sum(max_values) / len(max_values), 2)
-        return 0.0
+        return round(self._coordinator.average_max_value, 2)
 
     @property
     def extra_state_attributes(self):
         """Return extra attributes."""
-        prev_values = self._coordinator.previous_month_max_values
-        prev_avg = round(sum(prev_values) / len(prev_values), 2) if prev_values else 0.0
+        prev_avg = round(self._coordinator.previous_month_average_max_value, 2)
         return {"previous_month_average": prev_avg}
 
 
@@ -258,9 +263,8 @@ class AverageMaxCostSensor(SensorEntity):
     @property
     def native_value(self):
         """Return the state."""
-        max_values = self._coordinator.max_values
-        if max_values and self._coordinator.price_per_kw > 0:
-            avg_power = sum(max_values) / len(max_values)
+        if self._coordinator.price_per_kw > 0:
+            avg_power = self._coordinator.average_max_value
             return round(avg_power * self._coordinator.price_per_kw, 2)
         return 0.0
 
@@ -274,15 +278,14 @@ class AverageMaxCostSensor(SensorEntity):
     @property
     def extra_state_attributes(self):
         """Return extra attributes."""
-        prev_values = self._coordinator.previous_month_max_values
-        prev_avg = round(sum(prev_values) / len(prev_values), 2) if prev_values else 0.0
+        prev_avg = self._coordinator.previous_month_average_max_value
         prev_cost = (
             round(prev_avg * self._coordinator.price_per_kw, 2)
-            if prev_values and self._coordinator.price_per_kw > 0
+            if self._coordinator.price_per_kw > 0
             else 0.0
         )
         return {
-            "previous_month_average": prev_avg,
+            "previous_month_average": round(prev_avg, 2),
             "previous_month_cost": prev_cost,
             "price_per_kw": self._coordinator.price_per_kw,
         }
@@ -337,12 +340,7 @@ class SourcePowerSensor(GatedSensorEntity):
             self.async_write_ha_state()
 
         # Track state changes of source and binary sensors
-        sensors = [self._source_sensor]
-        if self._binary_sensor:
-            sensors.append(self._binary_sensor)
-        self.async_on_remove(
-            async_track_state_change_event(self.hass, sensors, _async_state_changed)
-        )
+        self._setup_state_change_tracking(self._source_sensor, _async_state_changed)
 
     @property
     def native_value(self):
@@ -493,12 +491,7 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
             self.async_write_ha_state()
 
         # Track state changes of source and binary sensors
-        sensors = [self._source_sensor]
-        if self._binary_sensor:
-            sensors.append(self._binary_sensor)
-        self.async_on_remove(
-            async_track_state_change_event(self.hass, sensors, _async_state_changed)
-        )
+        self._setup_state_change_tracking(self._source_sensor, _async_state_changed)
 
     @property
     def native_value(self):
