@@ -8,6 +8,7 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
 from homeassistant.const import Platform
+from homeassistant.core import ServiceCall
 
 from custom_components.power_max_tracker import async_setup, async_setup_entry, async_unload_entry
 from custom_components.power_max_tracker.const import DOMAIN
@@ -178,7 +179,6 @@ class TestInitServices:
                         pass  # Skip coordinators that can't update
 
         # Call the service function
-        from homeassistant.core import ServiceCall
         call = ServiceCall(DOMAIN, "reset_max_values", {})
         await reset_max_values_service(call)
 
