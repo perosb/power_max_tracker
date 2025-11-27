@@ -124,6 +124,7 @@ class TestSourcePowerSensor:
 
         assert sensor._coordinator == coordinator
         assert sensor._entry == mock_config_entry
+        assert sensor._attr_entity_registry_visible_default is False  # Should be hidden by default
 
     def test_native_value_no_source_entity(self, coordinator, mock_config_entry):
         """Test native value when no source entity is set."""

@@ -8,7 +8,7 @@ The **Power Max Tracker** integration for Home Assistant tracks the maximum hour
 - **Max Power Sensors**: Creates `num_max_values` sensors (e.g., `sensor.max_hourly_average_power_1_<entry_id>`, `sensor.max_hourly_average_power_2_<entry_id>`) showing the top hourly average power values in kW, rounded to 2 decimal places, with a `last_update` attribute for the timestamp of the last value change.
 - **Average Max Power Sensor**: Creates a sensor (e.g., `sensor.average_max_hourly_average_power_<entry_id>`) showing the average of all max hourly average power values in kW, with an attribute `previous_month_average` for the previous month's average.
 - **Average Max Cost Sensor**: Creates a sensor (e.g., `sensor.average_max_hourly_average_power_cost_<entry_id>`) showing the monetary cost of the average max hourly average power in the configured currency, with attributes for previous month cost and price per kW. Only created when price per kW is greater than 0.
-- **Source Power Sensor**: Creates a sensor (e.g., `sensor.power_max_source_<entry_id>`) that tracks the source sensor's state in watts, setting to `0` for negative values or when the binary sensor is off/unavailable.
+- **Source Power Sensor**: Creates a sensor (e.g., `sensor.power_max_source_<entry_id>`) that tracks the source sensor in watts, setting to `0` for negative values or when the binary sensor is off/unavailable. **Hidden by default** - enable in entity settings if needed.
 - **Hourly Average Power Sensor**: Creates a sensor (e.g., `sensor.hourly_average_power_<entry_id>`) that calculates the average power in kW so far in the current hour based on the source sensor's power, gated by the binary sensor, with periodic updates to account for 0W periods.
 - **Hourly Updates**: Updates `max_values` at 1 minute past each hour using hourly average statistics from the source sensor.
 - **Negative Value Filtering**: Ignores negative power values in all sensors.
@@ -102,8 +102,8 @@ sensor:
   - `sensor.power_max_source_<unique_id>`: Tracks the source sensor in watts, `0` if negative or binary sensor is off/unavailable.
   - `sensor.hourly_average_power_<unique_id>`: Average power in kW so far in the current hour, with periodic updates for 0W periods.
 - **Services**:
-  - `power_max_tracker.update_max_values`: Recalculates max values from midnight to the current hour.
-  - `power_max_tracker.reset_max_values`: Updates max values to the current month's maximum so far (resets to 0 and recalculates from month start).
+  - `power_max_tracker.update_max_values`: Recalculates max values from midnight to the current hour for instances not gated by binary sensors.
+  - `power_max_tracker.reset_max_values`: Updates max values to the current month's maximum so far for instances not gated by binary sensors (resets to 0 and recalculates from month start).
 - **Updates**: Max sensors update at 1 minute past each hour or after calling services. The source and hourly average sensors update in real-time when the binary sensor is `"on"`, with additional periodic updates for the hourly average sensor.
 
 ## Important Notes

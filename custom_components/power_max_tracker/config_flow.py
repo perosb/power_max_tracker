@@ -9,6 +9,7 @@ from .const import (
     CONF_NUM_MAX_VALUES,
     CONF_BINARY_SENSOR,
     CONF_PRICE_PER_KW,
+    CONF_POWER_SCALING_FACTOR,
 )
 
 
@@ -87,6 +88,14 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     mode=selector.NumberSelectorMode.BOX,
                 )
             ),
+            CONF_POWER_SCALING_FACTOR: selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0.001,
+                    max=10000.0,
+                    step=0.001,
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
         }
 
     def _get_reconfigure_schema(self, entry):
@@ -106,6 +115,10 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_PRICE_PER_KW,
                 default=entry.data.get(CONF_PRICE_PER_KW, 0.0),
             ): fields[CONF_PRICE_PER_KW],
+            vol.Optional(
+                CONF_POWER_SCALING_FACTOR,
+                default=entry.data.get(CONF_POWER_SCALING_FACTOR, 1.0),
+            ): fields[CONF_POWER_SCALING_FACTOR],
         }
 
         # Only add binary sensor field with default if it has a value
@@ -152,6 +165,7 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_NUM_MAX_VALUES: int(data.get(CONF_NUM_MAX_VALUES, 2)),
             CONF_PRICE_PER_KW: float(data.get(CONF_PRICE_PER_KW, 0.0)),
             CONF_BINARY_SENSOR: data.get(CONF_BINARY_SENSOR),
+            CONF_POWER_SCALING_FACTOR: float(data.get(CONF_POWER_SCALING_FACTOR, 1.0)),
         }
 
     async def _create_entry(self, data):
@@ -159,7 +173,8 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         normalized = self._normalize_config_data(data)
 
         source_sensor = normalized[CONF_SOURCE_SENSOR]
-        unique_id = f"power_max_tracker_{source_sensor.replace('.', '_')}"
+        # Generate a truly unique ID to prevent conflicts when multiple entries use the same source sensor
+        unique_id = str(uuid.uuid4())
         await self.async_set_unique_id(unique_id)
-        title = f"Power Max Tracker ({source_sensor.split('.')[-1]}-{str(uuid.uuid4())[:8]})"
+        title = f"Power Max Tracker ({source_sensor.split('.')[-1]})"
         return self.async_create_entry(title=title, data=normalized)

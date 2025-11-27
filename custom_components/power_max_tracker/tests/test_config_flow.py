@@ -16,6 +16,7 @@ from custom_components.power_max_tracker.const import (
     CONF_NUM_MAX_VALUES,
     CONF_BINARY_SENSOR,
     CONF_PRICE_PER_KW,
+    CONF_POWER_SCALING_FACTOR,
 )
 
 
@@ -63,17 +64,19 @@ class TestPowerMaxTrackerConfigFlow:
             result = await flow.async_step_user(user_input)
 
         assert result["type"] == "create_entry"
-        flow.async_set_unique_id.assert_called_once_with("power_max_tracker_sensor_test_power")
+        flow.async_set_unique_id.assert_called_once_with(
+            "12345678-1234-1234-1234-123456789012"
+        )
         expected_data = {
             CONF_SOURCE_SENSOR: "sensor.test_power",
             CONF_MONTHLY_RESET: True,
             CONF_NUM_MAX_VALUES: 3,
             CONF_BINARY_SENSOR: "binary_sensor.test",
             CONF_PRICE_PER_KW: 0.0,
+            CONF_POWER_SCALING_FACTOR: 1.0,
         }
         flow.async_create_entry.assert_called_once_with(
-            title="Power Max Tracker (test_power-12345678)",
-            data=expected_data
+            title="Power Max Tracker (test_power)", data=expected_data
         )
 
     @pytest.mark.asyncio
@@ -108,17 +111,19 @@ class TestPowerMaxTrackerConfigFlow:
             result = await flow.async_step_import(import_config)
 
         assert result["type"] == "create_entry"
-        flow.async_set_unique_id.assert_called_once_with("power_max_tracker_sensor_test_power")
+        flow.async_set_unique_id.assert_called_once_with(
+            "12345678-1234-1234-1234-123456789012"
+        )
         expected_data = {
             CONF_SOURCE_SENSOR: "sensor.test_power",
             CONF_MONTHLY_RESET: False,
             CONF_NUM_MAX_VALUES: 2,
             CONF_BINARY_SENSOR: None,
             CONF_PRICE_PER_KW: 0.0,
+            CONF_POWER_SCALING_FACTOR: 1.0,
         }
         flow.async_create_entry.assert_called_once_with(
-            title="Power Max Tracker (test_power-12345678)",
-            data=expected_data
+            title="Power Max Tracker (test_power)", data=expected_data
         )
 
     @pytest.mark.asyncio
@@ -137,15 +142,14 @@ class TestPowerMaxTrackerConfigFlow:
 
         # Mock the async methods
         flow.async_set_unique_id = AsyncMock()
-        flow.async_create_entry = MagicMock(return_value={
-            "title": "Power Max Tracker (test_power-12345678)", 
-            "data": data
-        })
+        flow.async_create_entry = MagicMock(
+            return_value={"title": "Power Max Tracker (test_power)", "data": data}
+        )
 
         with patch("uuid.uuid4", return_value="12345678-1234-1234-1234-123456789012"):
             entry = await flow._create_entry(data)
 
-        assert entry["title"] == "Power Max Tracker (test_power-12345678)"
+        assert entry["title"] == "Power Max Tracker (test_power)"
         assert entry["data"] == data
 
     @pytest.mark.asyncio
@@ -183,6 +187,7 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_NUM_MAX_VALUES: 5,
             CONF_BINARY_SENSOR: "binary_sensor.new",
             CONF_PRICE_PER_KW: 0.0,
+            CONF_POWER_SCALING_FACTOR: 1.0,
         }
         flow.async_update_reload_and_abort.assert_called_once_with(
             mock_entry, data=expected_data

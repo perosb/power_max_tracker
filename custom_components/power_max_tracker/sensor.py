@@ -307,6 +307,7 @@ class SourcePowerSensor(GatedSensorEntity):
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_icon = "mdi:power"
         self._attr_should_poll = False  # Updated via state changes
+        self._attr_entity_registry_visible_default = False  # Hidden by default
         self._state = 0.0
 
     async def async_added_to_hass(self):

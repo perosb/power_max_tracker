@@ -27,14 +27,16 @@
           "num_max_values": "Antal Maxvärden",
           "monthly_reset": "Månadsåterställning",
           "binary_sensor": "Binär Sensor (Valfri)",
-          "price_per_kw": "Effektavgift per kW"
+          "price_per_kw": "Effektavgift per kW",
+          "power_scaling_factor": "Effektskalningsfaktor"
         },
         "data_description": {
           "source_sensor": "Välj effektgivaren att spåra (måste ge watt).",
           "num_max_values": "Antal maximala effektvärden att spåra (1-10).",
           "monthly_reset": "Återställ maximala värden till 0 den 1:a varje månad.",
           "binary_sensor": "Valfri binär sensor för att styra uppdateringar (uppdatera endast när 'på').",
-          "price_per_kw": "Effektavgift per kilowatt för elkostnadskalkyler."
+          "price_per_kw": "Effektavgift per kilowatt för elkostnadskalkyler.",
+          "power_scaling_factor": "Skalningsfaktor att tillämpa på effektvärden (automatiskt detekterad om inte inställd)."
         }
       }
     },

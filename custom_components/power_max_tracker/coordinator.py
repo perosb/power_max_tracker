@@ -13,6 +13,7 @@ from .const import (
     CONF_NUM_MAX_VALUES,
     CONF_BINARY_SENSOR,
     CONF_PRICE_PER_KW,
+    CONF_POWER_SCALING_FACTOR,
     SECONDS_PER_HOUR,
     WATTS_TO_KILOWATTS,
     STORAGE_VERSION,
@@ -47,6 +48,7 @@ class PowerMaxCoordinator:
             self.num_max_values = int(entry.data.get(CONF_NUM_MAX_VALUES, 2))
             self.binary_sensor = entry.data.get(CONF_BINARY_SENSOR, None)
             self.price_per_kw = float(entry.data.get(CONF_PRICE_PER_KW, 0.0))
+            self.power_scaling_factor = float(entry.data.get(CONF_POWER_SCALING_FACTOR, 1.0))
             self.unique_id = entry.entry_id
         else:
             # YAML mode
@@ -55,10 +57,8 @@ class PowerMaxCoordinator:
             self.num_max_values = int(yaml_config.get(CONF_NUM_MAX_VALUES, 2))
             self.binary_sensor = yaml_config.get(CONF_BINARY_SENSOR, None)
             self.price_per_kw = float(yaml_config.get(CONF_PRICE_PER_KW, 0.0))
+            self.power_scaling_factor = float(yaml_config.get(CONF_POWER_SCALING_FACTOR, 1.0))
             self.unique_id = yaml_unique_id
-
-        # Always start with default scaling factor - auto-detection will handle the rest
-        self.power_scaling_factor = 1.0
 
         self.source_sensor_entity_id = None  # Set dynamically after entity registration
         self.max_values = [0.0] * self.num_max_values
@@ -93,8 +93,9 @@ class PowerMaxCoordinator:
             self.entities.append(entity)
             if entity._attr_unique_id.endswith("_source"):
                 self.source_sensor_entity_id = entity.entity_id
-                # Auto-detect scaling factor based on source sensor unit
-                self._auto_detect_scaling_factor()
+                # Auto-detect scaling factor based on source sensor unit only if not explicitly configured
+                if self.power_scaling_factor == 1.0:  # Default value means auto-detect
+                    self._auto_detect_scaling_factor()
         else:
             _LOGGER.error(
                 f"Failed to add entity: {entity}, has_unique_id={hasattr(entity, '_attr_unique_id')}, "
@@ -135,12 +136,12 @@ class PowerMaxCoordinator:
             unit_lower = unit.lower()
             if unit_lower in ["kw", "kilowatt", "kilowatts"]:
                 self.power_scaling_factor = 1000.0  # Convert kW to W
-                _LOGGER.info(
+                _LOGGER.debug(
                     f"Auto-detected kW unit for {self.source_sensor_entity_id}, setting scaling factor to 1000"
                 )
             elif unit_lower in ["w", "watt", "watts"]:
                 self.power_scaling_factor = 1.0  # No scaling needed
-                _LOGGER.info(
+                _LOGGER.debug(
                     f"Auto-detected W unit for {self.source_sensor_entity_id}, setting scaling factor to 1"
                 )
             else:
@@ -175,8 +176,8 @@ class PowerMaxCoordinator:
         # Clean invalid entities
         self.entities = [e for e in self.entities if self._is_valid_entity(e)]
 
-        # Auto-detect scaling factor if not already done
-        if self.source_sensor_entity_id:
+        # Auto-detect scaling factor if not already done and still at default
+        if self.source_sensor_entity_id and self.power_scaling_factor == 1.0:
             self._auto_detect_scaling_factor()
 
         # Hourly update listener (for max values)

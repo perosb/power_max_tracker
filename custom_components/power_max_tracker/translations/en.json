@@ -27,14 +27,16 @@
           "num_max_values": "Number of Max Values",
           "monthly_reset": "Monthly Reset",
           "binary_sensor": "Binary Sensor (Optional)",
-          "price_per_kw": "Electricity Fee per kW"
+          "price_per_kw": "Electricity Fee per kW",
+          "power_scaling_factor": "Power Scaling Factor"
         },
         "data_description": {
           "source_sensor": "Select the power sensor to track (must provide watts).",
           "num_max_values": "Number of maximum power values to track (1-10).",
           "monthly_reset": "Reset maximum values to 0 on the 1st of each month.",
           "binary_sensor": "Optional binary sensor to gate updates (only update when 'on').",
-          "price_per_kw": "Fee per kilowatt for electricity cost calculations."
+          "price_per_kw": "Fee per kilowatt for electricity cost calculations.",
+          "power_scaling_factor": "Scaling factor to apply to power values (auto-detected if not set)."
         }
       }
     },
