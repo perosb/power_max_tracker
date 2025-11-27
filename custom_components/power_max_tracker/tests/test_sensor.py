@@ -14,6 +14,7 @@ from custom_components.power_max_tracker.sensor import (
     HourlyAveragePowerSensor,
     AverageMaxPowerSensor,
     AverageMaxCostSensor,
+    GatedSensorEntity,
     async_setup_entry,
     async_setup_platform,
 )
@@ -24,6 +25,57 @@ from custom_components.power_max_tracker.const import (
     CONF_BINARY_SENSOR,
     DOMAIN,
 )
+
+
+class TestGatedSensorEntity:
+    """Test cases for GatedSensorEntity."""
+
+    def test_setup_state_change_tracking_no_binary_sensor(
+        self, mock_config_entry, mock_hass
+    ):
+        """Test state change tracking setup without binary sensor."""
+        # Create a mock entry without binary sensor
+        mock_config_entry.data = {CONF_SOURCE_SENSOR: "sensor.test_power"}
+
+        sensor = GatedSensorEntity(mock_config_entry)
+        sensor.hass = mock_hass
+
+        callback = MagicMock()
+
+        with patch(
+            "custom_components.power_max_tracker.sensor.async_track_state_change_event"
+        ) as mock_track:
+            sensor._setup_state_change_tracking("sensor.test_power", callback)
+
+            # Should track only the source sensor
+            mock_track.assert_called_once_with(
+                mock_hass, ["sensor.test_power"], callback
+            )
+
+    def test_setup_state_change_tracking_with_binary_sensor(
+        self, mock_config_entry, mock_hass
+    ):
+        """Test state change tracking setup with binary sensor."""
+        # Create a mock entry with binary sensor
+        mock_config_entry.data = {
+            CONF_SOURCE_SENSOR: "sensor.test_power",
+            CONF_BINARY_SENSOR: "binary_sensor.test_gate",
+        }
+
+        sensor = GatedSensorEntity(mock_config_entry)
+        sensor.hass = mock_hass
+
+        callback = MagicMock()
+
+        with patch(
+            "custom_components.power_max_tracker.sensor.async_track_state_change_event"
+        ) as mock_track:
+            sensor._setup_state_change_tracking("sensor.test_power", callback)
+
+            # Should track both source and binary sensors
+            mock_track.assert_called_once_with(
+                mock_hass, ["sensor.test_power", "binary_sensor.test_gate"], callback
+            )
 
 
 class TestMaxPowerSensor:
