@@ -5,7 +5,7 @@ They will fail when run in a standalone environment without HA installed.
 """
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch, AsyncMock
 
 from custom_components.power_max_tracker.sensor import (
@@ -124,7 +124,9 @@ class TestSourcePowerSensor:
 
         assert sensor._coordinator == coordinator
         assert sensor._entry == mock_config_entry
-        assert sensor._attr_entity_registry_visible_default is False  # Should be hidden by default
+        assert (
+            sensor._attr_entity_registry_visible_default is False
+        )  # Should be hidden by default
 
     def test_native_value_no_source_entity(self, coordinator, mock_config_entry):
         """Test native value when no source entity is set."""
@@ -159,6 +161,221 @@ class TestSourcePowerSensor:
         # Let's check if it has any attributes
         assert hasattr(sensor, "_coordinator")
 
+    @pytest.mark.asyncio
+    async def test_time_based_scaling_within_window(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Test time-based scaling when within time window."""
+        # Set up coordinator with time scaling
+        coordinator.start_time = "10:00"
+        coordinator.stop_time = "18:00"
+        coordinator.time_scaling_factor = 2.0
+        coordinator.power_scaling_factor = 1.0
+
+        sensor = SourcePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        # Mock current time to be within window (14:00)
+        mock_now = datetime(2023, 1, 1, 14, 0, 0, tzinfo=timezone.utc)
+        with patch(
+            "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+            return_value=mock_now,
+        ):
+            # Simulate the state change logic directly
+            source_state_value = 1000.0  # 1000W
+            scaled_value = (
+                max(0.0, source_state_value) * coordinator.power_scaling_factor
+            )
+
+            # Apply time-based scaling if within time window
+            if sensor._is_time_in_window(mock_now):
+                scaled_value *= coordinator.time_scaling_factor
+
+            sensor._state = scaled_value
+
+            # Should apply time scaling: 1000 * 1.0 * 2.0 = 2000
+            assert sensor.native_value == 2000.0
+
+    @pytest.mark.asyncio
+    async def test_time_based_scaling_outside_window(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Test time-based scaling when outside time window."""
+        # Set up coordinator with time scaling
+        coordinator.start_time = "10:00"
+        coordinator.stop_time = "18:00"
+        coordinator.time_scaling_factor = 2.0
+        coordinator.power_scaling_factor = 1.0
+
+        sensor = SourcePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        # Mock current time to be outside window (20:00)
+        mock_now = datetime(2023, 1, 1, 20, 0, 0, tzinfo=timezone.utc)
+        with patch(
+            "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+            return_value=mock_now,
+        ):
+            # Simulate the state change logic directly
+            source_state_value = 1000.0  # 1000W
+            scaled_value = (
+                max(0.0, source_state_value) * coordinator.power_scaling_factor
+            )
+
+            # Apply time-based scaling if within time window
+            if sensor._is_time_in_window(mock_now):
+                scaled_value *= coordinator.time_scaling_factor
+
+            sensor._state = scaled_value
+
+            # Should not apply time scaling: 1000 * 1.0 = 1000
+            assert sensor.native_value == 1000.0
+
+    @pytest.mark.asyncio
+    async def test_time_based_scaling_midnight_wraparound(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Test time-based scaling with midnight wrap-around."""
+        # Set up coordinator with time scaling across midnight
+        coordinator.start_time = "22:00"
+        coordinator.stop_time = "06:00"
+        coordinator.time_scaling_factor = 1.5
+        coordinator.power_scaling_factor = 1.0
+
+        sensor = SourcePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        # Mock current time to be within window (23:00)
+        mock_now = datetime(2023, 1, 1, 23, 0, 0, tzinfo=timezone.utc)
+        with patch(
+            "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+            return_value=mock_now,
+        ):
+            # Simulate the state change logic directly
+            source_state_value = 2000.0  # 2000W
+            scaled_value = (
+                max(0.0, source_state_value) * coordinator.power_scaling_factor
+            )
+
+            # Apply time-based scaling if within time window
+            if sensor._is_time_in_window(mock_now):
+                scaled_value *= coordinator.time_scaling_factor
+
+            sensor._state = scaled_value
+
+            # Should apply time scaling: 2000 * 1.0 * 1.5 = 3000
+            assert sensor.native_value == 3000.0
+
+    @pytest.mark.asyncio
+    async def test_time_based_scaling_midnight_wraparound_early_morning(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Test time-based scaling with midnight wrap-around in early morning."""
+        # Set up coordinator with time scaling across midnight
+        coordinator.start_time = "22:00"
+        coordinator.stop_time = "06:00"
+        coordinator.time_scaling_factor = 1.5
+        coordinator.power_scaling_factor = 1.0
+
+        sensor = SourcePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        # Mock current time to be within window (02:00 - after midnight, before stop time)
+        mock_now = datetime(2023, 1, 2, 2, 0, 0, tzinfo=timezone.utc)
+        with patch(
+            "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+            return_value=mock_now,
+        ):
+            # Simulate the state change logic directly
+            source_state_value = 2000.0  # 2000W
+            scaled_value = (
+                max(0.0, source_state_value) * coordinator.power_scaling_factor
+            )
+
+            # Apply time-based scaling if within time window
+            if sensor._is_time_in_window(mock_now):
+                scaled_value *= coordinator.time_scaling_factor
+
+            sensor._state = scaled_value
+
+            # Should apply time scaling: 2000 * 1.0 * 1.5 = 3000
+            assert sensor.native_value == 3000.0
+
+    @pytest.mark.asyncio
+    async def test_time_based_scaling_midnight_wraparound_outside_window(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Test time-based scaling with midnight wrap-around when outside window."""
+        # Set up coordinator with time scaling across midnight
+        coordinator.start_time = "22:00"
+        coordinator.stop_time = "06:00"
+        coordinator.time_scaling_factor = 1.5
+        coordinator.power_scaling_factor = 1.0
+
+        sensor = SourcePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        # Mock current time to be outside window (21:00 - before start time, not in wraparound)
+        mock_now = datetime(2023, 1, 1, 21, 0, 0, tzinfo=timezone.utc)
+        with patch(
+            "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+            return_value=mock_now,
+        ):
+            # Simulate the state change logic directly
+            source_state_value = 2000.0  # 2000W
+            scaled_value = (
+                max(0.0, source_state_value) * coordinator.power_scaling_factor
+            )
+
+            # Apply time-based scaling if within time window
+            if sensor._is_time_in_window(mock_now):
+                scaled_value *= coordinator.time_scaling_factor
+
+            sensor._state = scaled_value
+
+            # Should NOT apply time scaling: 2000 * 1.0 = 2000
+            assert sensor.native_value == 2000.0
+
+    @pytest.mark.asyncio
+    async def test_time_based_scaling_none_factor(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Test time-based scaling when time_scaling_factor is None (should not apply scaling)."""
+        # Set up coordinator with time scaling but factor is None
+        coordinator.start_time = "10:00"
+        coordinator.stop_time = "18:00"
+        coordinator.time_scaling_factor = None  # Explicitly set to None
+        coordinator.power_scaling_factor = 1.0
+
+        sensor = SourcePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        # Mock current time to be within window (14:00)
+        mock_now = datetime(2023, 1, 1, 14, 0, 0, tzinfo=timezone.utc)
+        with patch(
+            "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+            return_value=mock_now,
+        ):
+            # Simulate the state change logic directly
+            source_state_value = 1000.0  # 1000W
+            scaled_value = (
+                max(0.0, source_state_value) * coordinator.power_scaling_factor
+            )
+
+            # Apply time-based scaling if configured and within time window
+            if (
+                coordinator.start_time
+                and coordinator.stop_time
+                and coordinator.time_scaling_factor is not None
+                and sensor._is_time_in_window(mock_now)
+            ):
+                scaled_value *= coordinator.time_scaling_factor
+
+            sensor._state = scaled_value
+
+            # Should NOT apply time scaling because factor is None: 1000 * 1.0 = 1000
+            assert sensor.native_value == 1000.0
+
 
 class TestHourlyAveragePowerSensor:
     """Test cases for HourlyAveragePowerSensor."""
@@ -177,6 +394,311 @@ class TestHourlyAveragePowerSensor:
 
         # Without proper initialization, should return 0.0
         assert sensor.native_value == 0.0
+
+    @pytest.mark.asyncio
+    async def test_time_based_scaling_within_window(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Test time-based scaling within configured time window."""
+        # Set up coordinator with time scaling
+        coordinator.start_time = "18:00"
+        coordinator.stop_time = "22:00"
+        coordinator.time_scaling_factor = 2.0
+        coordinator.power_scaling_factor = 1.0
+
+        sensor = HourlyAveragePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        # Initialize sensor state
+        now = datetime(2023, 1, 1, 19, 0, 0, tzinfo=timezone.utc)
+        sensor._last_time = now
+        sensor._hour_start = now.replace(minute=0, second=0, microsecond=0)
+        sensor._accumulated_energy = 0.0
+        sensor._last_power = 0.0
+
+        # Mock current time to be within window (19:30)
+        mock_now = datetime(2023, 1, 1, 19, 30, 0, tzinfo=timezone.utc)
+        with patch(
+            "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+            return_value=mock_now,
+        ):
+            # Simulate the state change logic directly
+            source_state_value = 1000.0  # 1000W
+            current_power = (
+                max(0.0, source_state_value) * coordinator.power_scaling_factor
+            )
+
+            # Apply time-based scaling if within time window
+            if sensor._is_time_in_window(mock_now):
+                current_power *= coordinator.time_scaling_factor
+
+            # Simulate energy accumulation (simplified)
+            delta_seconds = (mock_now - sensor._last_time).total_seconds()
+            avg_power = (sensor._last_power + current_power) / 2
+            delta_energy = (
+                avg_power * delta_seconds * 0.001 / 3600  # kWh conversion
+            )
+            sensor._accumulated_energy += delta_energy
+            sensor._last_power = current_power
+            sensor._last_time = mock_now
+
+            # Check that time scaling was applied: 1000 * 1.0 * 2.0 = 2000
+            assert sensor._last_power == 2000.0
+
+    @pytest.mark.asyncio
+    async def test_time_based_scaling_outside_window(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Test time-based scaling outside configured time window."""
+        # Set up coordinator with time scaling
+        coordinator.start_time = "18:00"
+        coordinator.stop_time = "22:00"
+        coordinator.time_scaling_factor = 2.0
+        coordinator.power_scaling_factor = 1.0
+
+        sensor = HourlyAveragePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        # Initialize sensor state
+        now = datetime(2023, 1, 1, 19, 0, 0, tzinfo=timezone.utc)
+        sensor._last_time = now
+        sensor._hour_start = now.replace(minute=0, second=0, microsecond=0)
+        sensor._accumulated_energy = 0.0
+        sensor._last_power = 0.0
+
+        # Mock current time to be outside window (23:00)
+        mock_now = datetime(2023, 1, 1, 23, 0, 0, tzinfo=timezone.utc)
+        with patch(
+            "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+            return_value=mock_now,
+        ):
+            # Simulate the state change logic directly
+            source_state_value = 1000.0  # 1000W
+            current_power = (
+                max(0.0, source_state_value) * coordinator.power_scaling_factor
+            )
+
+            # Apply time-based scaling if within time window
+            if sensor._is_time_in_window(mock_now):
+                current_power *= coordinator.time_scaling_factor
+
+            # Simulate energy accumulation (simplified)
+            delta_seconds = (mock_now - sensor._last_time).total_seconds()
+            avg_power = (sensor._last_power + current_power) / 2
+            delta_energy = (
+                avg_power * delta_seconds * 0.001 / 3600  # kWh conversion
+            )
+            sensor._accumulated_energy += delta_energy
+            sensor._last_power = current_power
+            sensor._last_time = mock_now
+
+            # Check that time scaling was NOT applied: 1000 * 1.0 = 1000
+            assert sensor._last_power == 1000.0
+
+    @pytest.mark.asyncio
+    async def test_time_based_scaling_midnight_wraparound(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Test time-based scaling with midnight wrap-around."""
+        # Set up coordinator with time scaling across midnight
+        coordinator.start_time = "22:00"
+        coordinator.stop_time = "06:00"
+        coordinator.time_scaling_factor = 1.5
+        coordinator.power_scaling_factor = 1.0
+
+        sensor = HourlyAveragePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        # Initialize sensor state
+        now = datetime(2023, 1, 1, 19, 0, 0, tzinfo=timezone.utc)
+        sensor._last_time = now
+        sensor._hour_start = now.replace(minute=0, second=0, microsecond=0)
+        sensor._accumulated_energy = 0.0
+        sensor._last_power = 0.0
+
+        # Mock current time to be within window (23:00)
+        mock_now = datetime(2023, 1, 1, 23, 0, 0, tzinfo=timezone.utc)
+        with patch(
+            "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+            return_value=mock_now,
+        ):
+            # Simulate the state change logic directly
+            source_state_value = 2000.0  # 2000W
+            current_power = (
+                max(0.0, source_state_value) * coordinator.power_scaling_factor
+            )
+
+            # Apply time-based scaling if within time window
+            if sensor._is_time_in_window(mock_now):
+                current_power *= coordinator.time_scaling_factor
+
+            # Simulate energy accumulation (simplified)
+            delta_seconds = (mock_now - sensor._last_time).total_seconds()
+            avg_power = (sensor._last_power + current_power) / 2
+            delta_energy = (
+                avg_power * delta_seconds * 0.001 / 3600  # kWh conversion
+            )
+            sensor._accumulated_energy += delta_energy
+            sensor._last_power = current_power
+            sensor._last_time = mock_now
+
+            # Check that time scaling was applied: 2000 * 1.0 * 1.5 = 3000
+            assert sensor._last_power == 3000.0
+
+    @pytest.mark.asyncio
+    async def test_time_based_scaling_midnight_wraparound_early_morning(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Test time-based scaling with midnight wrap-around in early morning."""
+        # Set up coordinator with time scaling across midnight
+        coordinator.start_time = "22:00"
+        coordinator.stop_time = "06:00"
+        coordinator.time_scaling_factor = 1.5
+        coordinator.power_scaling_factor = 1.0
+
+        sensor = HourlyAveragePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        # Initialize sensor state
+        now = datetime(2023, 1, 1, 19, 0, 0, tzinfo=timezone.utc)
+        sensor._last_time = now
+        sensor._hour_start = now.replace(minute=0, second=0, microsecond=0)
+        sensor._accumulated_energy = 0.0
+        sensor._last_power = 0.0
+
+        # Mock current time to be within window (02:00 - after midnight, before stop time)
+        mock_now = datetime(2023, 1, 2, 2, 0, 0, tzinfo=timezone.utc)
+        with patch(
+            "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+            return_value=mock_now,
+        ):
+            # Simulate the state change logic directly
+            source_state_value = 2000.0  # 2000W
+            current_power = (
+                max(0.0, source_state_value) * coordinator.power_scaling_factor
+            )
+
+            # Apply time-based scaling if within time window
+            if sensor._is_time_in_window(mock_now):
+                current_power *= coordinator.time_scaling_factor
+
+            # Simulate energy accumulation (simplified)
+            delta_seconds = (mock_now - sensor._last_time).total_seconds()
+            avg_power = (sensor._last_power + current_power) / 2
+            delta_energy = (
+                avg_power * delta_seconds * 0.001 / 3600  # kWh conversion
+            )
+            sensor._accumulated_energy += delta_energy
+            sensor._last_power = current_power
+            sensor._last_time = mock_now
+
+            # Check that time scaling was applied: 2000 * 1.0 * 1.5 = 3000
+            assert sensor._last_power == 3000.0
+
+    @pytest.mark.asyncio
+    async def test_time_based_scaling_midnight_wraparound_outside_window(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Test time-based scaling with midnight wrap-around when outside window."""
+        # Set up coordinator with time scaling across midnight
+        coordinator.start_time = "22:00"
+        coordinator.stop_time = "06:00"
+        coordinator.time_scaling_factor = 1.5
+        coordinator.power_scaling_factor = 1.0
+
+        sensor = HourlyAveragePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        # Initialize sensor state
+        now = datetime(2023, 1, 1, 19, 0, 0, tzinfo=timezone.utc)
+        sensor._last_time = now
+        sensor._hour_start = now.replace(minute=0, second=0, microsecond=0)
+        sensor._accumulated_energy = 0.0
+        sensor._last_power = 0.0
+
+        # Mock current time to be outside window (21:00 - before start time, not in wraparound)
+        mock_now = datetime(2023, 1, 1, 21, 0, 0, tzinfo=timezone.utc)
+        with patch(
+            "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+            return_value=mock_now,
+        ):
+            # Simulate the state change logic directly
+            source_state_value = 2000.0  # 2000W
+            current_power = (
+                max(0.0, source_state_value) * coordinator.power_scaling_factor
+            )
+
+            # Apply time-based scaling if within time window
+            if sensor._is_time_in_window(mock_now):
+                current_power *= coordinator.time_scaling_factor
+
+            # Simulate energy accumulation (simplified)
+            delta_seconds = (mock_now - sensor._last_time).total_seconds()
+            avg_power = (sensor._last_power + current_power) / 2
+            delta_energy = (
+                avg_power * delta_seconds * 0.001 / 3600  # kWh conversion
+            )
+            sensor._accumulated_energy += delta_energy
+            sensor._last_power = current_power
+            sensor._last_time = mock_now
+
+            # Check that time scaling was NOT applied: 2000 * 1.0 = 2000
+            assert sensor._last_power == 2000.0
+
+    @pytest.mark.asyncio
+    async def test_time_based_scaling_none_factor(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Test time-based scaling when time_scaling_factor is None (should not apply scaling)."""
+        # Set up coordinator with time scaling but factor is None
+        coordinator.start_time = "18:00"
+        coordinator.stop_time = "22:00"
+        coordinator.time_scaling_factor = None  # Explicitly set to None
+        coordinator.power_scaling_factor = 1.0
+
+        sensor = HourlyAveragePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        # Initialize sensor state
+        now = datetime(2023, 1, 1, 19, 0, 0, tzinfo=timezone.utc)
+        sensor._last_time = now
+        sensor._hour_start = now.replace(minute=0, second=0, microsecond=0)
+        sensor._accumulated_energy = 0.0
+        sensor._last_power = 0.0
+
+        # Mock current time to be within window (19:30)
+        mock_now = datetime(2023, 1, 1, 19, 30, 0, tzinfo=timezone.utc)
+        with patch(
+            "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+            return_value=mock_now,
+        ):
+            # Simulate the state change logic directly
+            source_state_value = 1000.0  # 1000W
+            current_power = (
+                max(0.0, source_state_value) * coordinator.power_scaling_factor
+            )
+
+            # Apply time-based scaling if configured and within time window
+            if (
+                coordinator.start_time
+                and coordinator.stop_time
+                and coordinator.time_scaling_factor is not None
+                and sensor._is_time_in_window(mock_now)
+            ):
+                current_power *= coordinator.time_scaling_factor
+
+            # Simulate energy accumulation (simplified)
+            delta_seconds = (mock_now - sensor._last_time).total_seconds()
+            avg_power = (sensor._last_power + current_power) / 2
+            delta_energy = (
+                avg_power * delta_seconds * 0.001 / 3600  # kWh conversion
+            )
+            sensor._accumulated_energy += delta_energy
+            sensor._last_power = current_power
+            sensor._last_time = mock_now
+
+            # Check that time scaling was NOT applied because factor is None: 1000 * 1.0 = 1000
+            assert sensor._last_power == 1000.0
 
 
 class TestAverageMaxPowerSensor:

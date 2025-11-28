@@ -5,6 +5,9 @@ CONF_NUM_MAX_VALUES = "num_max_values"
 CONF_BINARY_SENSOR = "binary_sensor"
 CONF_PRICE_PER_KW = "price_per_kw"
 CONF_POWER_SCALING_FACTOR = "power_scaling_factor"
+CONF_START_TIME = "start_time"
+CONF_STOP_TIME = "stop_time"
+CONF_TIME_SCALING_FACTOR = "time_scaling_factor"
 
 # Constants for calculations
 SECONDS_PER_HOUR = 3600
