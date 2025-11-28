@@ -51,11 +51,13 @@ class PowerMaxCoordinator:
             self.num_max_values = int(entry.data.get(CONF_NUM_MAX_VALUES, 2))
             self.binary_sensor = entry.data.get(CONF_BINARY_SENSOR, None)
             self.price_per_kw = float(entry.data.get(CONF_PRICE_PER_KW, 0.0))
-            self.power_scaling_factor = float(entry.data.get(CONF_POWER_SCALING_FACTOR, 1.0))
+            self.power_scaling_factor = float(
+                entry.data.get(CONF_POWER_SCALING_FACTOR, 1.0)
+            )
             self.start_time = entry.data.get(CONF_START_TIME, None)
             self.stop_time = entry.data.get(CONF_STOP_TIME, None)
             self.time_scaling_factor = float(
-                entry.data.get(CONF_TIME_SCALING_FACTOR, 1.0)
+                entry.data.get(CONF_TIME_SCALING_FACTOR, 1.0) or 1.0
             )
             self.unique_id = entry.entry_id
         else:
@@ -65,7 +67,9 @@ class PowerMaxCoordinator:
             self.num_max_values = int(yaml_config.get(CONF_NUM_MAX_VALUES, 2))
             self.binary_sensor = yaml_config.get(CONF_BINARY_SENSOR, None)
             self.price_per_kw = float(yaml_config.get(CONF_PRICE_PER_KW, 0.0))
-            self.power_scaling_factor = float(yaml_config.get(CONF_POWER_SCALING_FACTOR, 1.0))
+            self.power_scaling_factor = float(
+                yaml_config.get(CONF_POWER_SCALING_FACTOR, 1.0)
+            )
             self.start_time = yaml_config.get(CONF_START_TIME, None)
             self.stop_time = yaml_config.get(CONF_STOP_TIME, None)
             self.time_scaling_factor = float(

@@ -51,8 +51,6 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Validate that binary sensor and time fields are mutually exclusive
             binary_sensor = user_input.get(CONF_BINARY_SENSOR)
             time_scaling = user_input.get(CONF_TIME_SCALING_FACTOR)
-            start_time = user_input.get(CONF_START_TIME)
-            stop_time = user_input.get(CONF_STOP_TIME)
 
             errors = {}
             if binary_sensor and time_scaling:
@@ -112,11 +110,9 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Validate that binary sensor and time fields are mutually exclusive
             binary_sensor = user_input.get(CONF_BINARY_SENSOR)
             time_scaling = user_input.get(CONF_TIME_SCALING_FACTOR)
-            start_time = user_input.get(CONF_START_TIME)
-            stop_time = user_input.get(CONF_STOP_TIME)
 
             errors = {}
-            if binary_sensor and (start_time or stop_time or time_scaling):
+            if binary_sensor and time_scaling:
                 errors["base"] = "binary_sensor_exclusive"
 
             if errors:

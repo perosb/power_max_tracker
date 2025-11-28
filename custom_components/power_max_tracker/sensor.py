@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 from homeassistant.components.sensor import (
     SensorEntity,
     SensorDeviceClass,
@@ -99,12 +100,12 @@ class GatedSensorEntity(SensorEntity):
         # Handle midnight wrap-around
         if stop_dt <= start_dt:
             # Time window crosses midnight
-            stop_dt = stop_dt + dt_util.dt.timedelta(days=1)
+            stop_dt = stop_dt + timedelta(days=1)
             if now < start_dt:
                 # Before start time, check if we're in the next day's window
                 return now >= (
-                    start_dt - dt_util.dt.timedelta(days=1)
-                ) and now <= stop_dt - dt_util.dt.timedelta(days=1)
+                    start_dt - timedelta(days=1)
+                ) and now <= stop_dt - timedelta(days=1)
             else:
                 # After start time, check current window
                 return now >= start_dt and now <= stop_dt

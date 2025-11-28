@@ -137,7 +137,7 @@ class TestPowerMaxTrackerConfigFlow:
         }
 
         time_input = {
-            CONF_START_TIME: "08:00",
+            CONF_TIME_SCALING_FACTOR: 2.0,
             CONF_BINARY_SENSOR: "binary_sensor.test",
         }
 
@@ -387,7 +387,7 @@ class TestPowerMaxTrackerConfigFlow:
         flow._reconfigure_entry = mock_entry
 
         time_input = {
-            CONF_START_TIME: "08:00",
+            CONF_TIME_SCALING_FACTOR: 2.0,
             CONF_BINARY_SENSOR: "binary_sensor.test",
         }
 
