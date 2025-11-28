@@ -8,40 +8,71 @@
           "source_sensor": "Source Sensor",
           "num_max_values": "Number of Max Values",
           "monthly_reset": "Monthly Reset",
-          "binary_sensor": "Binary Sensor (Optional)",
           "price_per_kw": "Electricity Fee per kW"
         },
         "data_description": {
           "source_sensor": "Select the power sensor to track (must provide watts).",
           "num_max_values": "Number of maximum power values to track (1-10).",
           "monthly_reset": "Reset maximum values to 0 on the 1st of each month.",
-          "binary_sensor": "Optional binary sensor to gate updates (only update when 'on').",
           "price_per_kw": "Fee per kilowatt for electricity cost calculations."
-        }
+        },
+        "submit": "Continue to Time Settings"
       },
       "reconfigure": {
         "title": "Reconfigure Power Max Tracker",
-        "description": "Update the configuration for your Power Max Tracker integration.",
+        "description": "Update the basic configuration for your Power Max Tracker integration.",
         "data": {
           "source_sensor": "Source Sensor",
-          "num_max_values": "Number of Max Values",
           "monthly_reset": "Monthly Reset",
-          "binary_sensor": "Binary Sensor (Optional)",
+          "num_max_values": "Number of Max Values",
           "price_per_kw": "Electricity Fee per kW",
           "power_scaling_factor": "Power Scaling Factor"
         },
         "data_description": {
           "source_sensor": "Select the power sensor to track (must provide watts).",
-          "num_max_values": "Number of maximum power values to track (1-10).",
           "monthly_reset": "Reset maximum values to 0 on the 1st of each month.",
-          "binary_sensor": "Optional binary sensor to gate updates (only update when 'on').",
+          "num_max_values": "Number of maximum power values to track (1-10).",
           "price_per_kw": "Fee per kilowatt for electricity cost calculations.",
           "power_scaling_factor": "Scaling factor to apply to power values (auto-detected if not set)."
+        },
+        "submit": "Continue to Time Settings"
+      },
+      "reconfigure_time": {
+        "title": "Time & Advanced Settings",
+        "description": "Configure time-based tracking and advanced options.",
+        "data": {
+          "start_time": "Start Time",
+          "stop_time": "Stop Time",
+          "time_scaling_factor": "Time Scaling Factor",
+          "binary_sensor": "Gating Sensor (Optional)"
+        },
+        "data_description": {
+          "start_time": "Start time for applying the scaling factor.",
+          "stop_time": "End time for applying the scaling factor.",
+          "time_scaling_factor": "Multiplier for power values during this time period.",
+          "binary_sensor": "Only track power when this binary sensor is 'on' (leave empty for always-on tracking)."
+        }
+      },
+      "time_config": {
+        "title": "Time & Advanced Settings",
+        "description": "Configure time-based tracking and advanced options.",
+        "data": {
+          "start_time": "Start Time",
+          "stop_time": "Stop Time",
+          "time_scaling_factor": "Time Scaling Factor",
+          "binary_sensor": "Gating Sensor (Optional)"
+        },
+        "data_description": {
+          "start_time": "Start time for applying the scaling factor.",
+          "stop_time": "End time for applying the scaling factor.",
+          "time_scaling_factor": "Multiplier for power values during this time period.",
+          "binary_sensor": "Only track power when this binary sensor is 'on' (leave empty for always-on tracking)."
         }
       }
     },
     "error": {
-      "invalid_max_values": "Number of max values must be an integer between 1 and 10."
+      "invalid_max_values": "Number of max values must be an integer between 1 and 10.",
+      "binary_sensor_exclusive": "Cannot use time-based settings when a gating sensor is selected. Choose either time-based tracking OR sensor-based gating, not both."
     },
     "abort": {
       "already_configured": "Device is already configured",
