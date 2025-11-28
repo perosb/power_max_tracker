@@ -531,6 +531,7 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
                         if (
                             self._coordinator.start_time
                             and self._coordinator.stop_time
+                            and self._coordinator.time_scaling_factor is not None
                             and self._is_time_in_window(now)
                         ):
                             current_power *= self._coordinator.time_scaling_factor
