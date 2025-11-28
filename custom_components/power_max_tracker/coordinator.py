@@ -69,7 +69,7 @@ class PowerMaxCoordinator:
             self.start_time = yaml_config.get(CONF_START_TIME, None)
             self.stop_time = yaml_config.get(CONF_STOP_TIME, None)
             self.time_scaling_factor = float(
-                yaml_config.get(CONF_TIME_SCALING_FACTOR, 1.0)
+                yaml_config.get(CONF_TIME_SCALING_FACTOR, 1.0) or 1.0
             )
             self.unique_id = yaml_unique_id
 
