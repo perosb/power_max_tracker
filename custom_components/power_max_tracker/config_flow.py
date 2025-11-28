@@ -55,7 +55,7 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             stop_time = user_input.get(CONF_STOP_TIME)
 
             errors = {}
-            if binary_sensor and (start_time or stop_time or time_scaling):
+            if binary_sensor and time_scaling:
                 errors["base"] = "binary_sensor_exclusive"
 
             if errors:
