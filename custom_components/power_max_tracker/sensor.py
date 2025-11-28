@@ -80,6 +80,38 @@ class GatedSensorEntity(SensorEntity):
         state = self.hass.states.get(self._binary_sensor)
         return state is not None and state.state == "on"
 
+    def _is_time_in_window(self, now):
+        """Check if current time is within the configured time window."""
+        if not self._coordinator.start_time or not self._coordinator.stop_time:
+            return False
+
+        start_time = dt_util.parse_time(self._coordinator.start_time)
+        stop_time = dt_util.parse_time(self._coordinator.stop_time)
+
+        # Convert to today's datetime for comparison
+        start_dt = dt_util.start_of_local_day(now).replace(
+            hour=start_time.hour, minute=start_time.minute, second=start_time.second
+        )
+        stop_dt = dt_util.start_of_local_day(now).replace(
+            hour=stop_time.hour, minute=stop_time.minute, second=stop_time.second
+        )
+
+        # Handle midnight wrap-around
+        if stop_dt <= start_dt:
+            # Time window crosses midnight
+            stop_dt = stop_dt + dt_util.dt.timedelta(days=1)
+            if now < start_dt:
+                # Before start time, check if we're in the next day's window
+                return now >= (
+                    start_dt - dt_util.dt.timedelta(days=1)
+                ) and now <= stop_dt - dt_util.dt.timedelta(days=1)
+            else:
+                # After start time, check current window
+                return now >= start_dt and now <= stop_dt
+        else:
+            # Normal time window within same day
+            return start_dt <= now <= stop_dt
+
     def _setup_state_change_tracking(self, source_sensor, callback):
         """Set up state change tracking for source and binary sensors."""
         sensors = [source_sensor]
@@ -87,6 +119,17 @@ class GatedSensorEntity(SensorEntity):
             sensors.append(self._binary_sensor)
         self.async_on_remove(
             async_track_state_change_event(self.hass, sensors, callback)
+        )
+
+    def _log_scaling_applied(
+        self, sensor_name, original_value, final_value, time_scaling_applied
+    ):
+        """Log scaling operation details."""
+        _LOGGER.debug(
+            f"{sensor_name} scaling applied - Original: {original_value}W, "
+            f"Power scaling: {self._coordinator.power_scaling_factor}, "
+            f"Time scaling: {self._coordinator.time_scaling_factor if time_scaling_applied else 'N/A'} "
+            f"(applied: {time_scaling_applied}), Final: {final_value}W"
         )
 
 
@@ -323,9 +366,29 @@ class SourcePowerSensor(GatedSensorEntity):
                 ):
                     try:
                         value = float(source_state.state)
-                        self._state = (
-                            max(0.0, value) * self._coordinator.power_scaling_factor
-                        )  # Apply scaling factor
+                        original_value = max(0.0, value)
+                        scaled_value = (
+                            original_value * self._coordinator.power_scaling_factor
+                        )
+
+                        # Apply time-based scaling if configured and within time window
+                        time_scaling_applied = False
+                        if (
+                            self._coordinator.start_time
+                            and self._coordinator.stop_time
+                            and self._is_time_in_window(dt_util.utcnow())
+                        ):
+                            scaled_value *= self._coordinator.time_scaling_factor
+                            time_scaling_applied = True
+
+                        self._log_scaling_applied(
+                            "SourcePowerSensor",
+                            original_value,
+                            scaled_value,
+                            time_scaling_applied,
+                        )
+
+                        self._state = scaled_value
                     except (ValueError, TypeError):
                         _LOGGER.warning(
                             f"Invalid state for {self._source_sensor}: {source_state.state}"
@@ -457,11 +520,28 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
                 ):
                     try:
                         current_power = float(source_state.state)
-                        if current_power < 0:
-                            current_power = 0.0
-                        current_power *= (
+                        original_power = max(0.0, current_power)
+                        current_power = original_power * (
                             self._coordinator.power_scaling_factor
-                        )  # Apply scaling factor
+                        )  # Apply power scaling factor
+
+                        # Apply time-based scaling if configured and within time window
+                        time_scaling_applied = False
+                        if (
+                            self._coordinator.start_time
+                            and self._coordinator.stop_time
+                            and self._is_time_in_window(now)
+                        ):
+                            current_power *= self._coordinator.time_scaling_factor
+                            time_scaling_applied = True
+
+                        self._log_scaling_applied(
+                            "HourlyAveragePowerSensor",
+                            original_power,
+                            current_power,
+                            time_scaling_applied,
+                        )
+
                         delta_seconds = (now - self._last_time).total_seconds()
                         if delta_seconds > 0:
                             # Average power in W
