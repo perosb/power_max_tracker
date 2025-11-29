@@ -126,20 +126,16 @@ class TestInitServices:
             """Service to update max values from midnight."""
             for coord in mock_hass.data.get(DOMAIN, {}).values():
                 if isinstance(coord, MagicMock):
-                    # Only update coordinators that can update max values (respect binary sensor gating)
-                    if coord._can_update_max_values():
-                        await coord.async_update_max_values_from_midnight()
-                    else:
-                        pass  # Skip coordinators that can't update
+                    await coord.async_update_max_values_from_midnight()
 
         # Call the service function
         call = ServiceCall(DOMAIN, "update_max_values", {})
         await update_max_values_service(call)
 
-        # Verify coordinators were called appropriately
+        # Verify all coordinators were called (services now bypass gating)
         coord_no_binary.async_update_max_values_from_midnight.assert_called_once()
         coord_with_binary_on.async_update_max_values_from_midnight.assert_called_once()
-        coord_with_binary_off.async_update_max_values_from_midnight.assert_not_called()
+        coord_with_binary_off.async_update_max_values_from_midnight.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_reset_max_values_service(self, mock_hass):
@@ -172,17 +168,13 @@ class TestInitServices:
             """Service to reset max values to 0."""
             for coord in mock_hass.data.get(DOMAIN, {}).values():
                 if isinstance(coord, MagicMock):
-                    # Only update coordinators that can update max values (respect binary sensor gating)
-                    if coord._can_update_max_values():
-                        await coord.async_update_max_values_to_current_month()
-                    else:
-                        pass  # Skip coordinators that can't update
+                    await coord.async_update_max_values_to_current_month()
 
         # Call the service function
         call = ServiceCall(DOMAIN, "reset_max_values", {})
         await reset_max_values_service(call)
 
-        # Verify coordinators were called appropriately
+        # Verify all coordinators were called (services now bypass gating)
         coord_no_binary.async_update_max_values_to_current_month.assert_called_once()
         coord_with_binary_on.async_update_max_values_to_current_month.assert_called_once()
-        coord_with_binary_off.async_update_max_values_to_current_month.assert_not_called()
+        coord_with_binary_off.async_update_max_values_to_current_month.assert_called_once()

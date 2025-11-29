@@ -376,6 +376,7 @@ class SourcePowerSensor(GatedSensorEntity):
                             self._coordinator.start_time
                             and self._coordinator.stop_time
                             and self._coordinator.time_scaling_factor is not None
+                            and self._coordinator.time_scaling_factor != 1.0
                             and self._is_time_in_window(dt_util.utcnow())
                         ):
                             scaled_value *= self._coordinator.time_scaling_factor

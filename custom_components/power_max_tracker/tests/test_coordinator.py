@@ -231,39 +231,6 @@ class TestPowerMaxCoordinator:
         mock_entity.async_write_ha_state = None
         assert coordinator._is_valid_entity(mock_entity) is False
 
-    def test_can_update_max_values_no_binary_sensor(self, coordinator):
-        """Test max values update check without binary sensor."""
-        assert coordinator._can_update_max_values() is True
-
-    def test_can_update_max_values_with_binary_sensor_on(self, coordinator, mock_hass):
-        """Test max values update check with binary sensor in 'on' state."""
-        coordinator.binary_sensor = "binary_sensor.test"
-
-        mock_state = MagicMock()
-        mock_state.state = "on"
-        mock_hass.states.get.return_value = mock_state
-
-        assert coordinator._can_update_max_values() is True
-
-    def test_can_update_max_values_with_binary_sensor_off(self, coordinator, mock_hass):
-        """Test max values update check with binary sensor in 'off' state."""
-        coordinator.binary_sensor = "binary_sensor.test"
-
-        mock_state = MagicMock()
-        mock_state.state = "off"
-        mock_hass.states.get.return_value = mock_state
-
-        assert coordinator._can_update_max_values() is False
-
-    def test_can_update_max_values_with_binary_sensor_unavailable(
-        self, coordinator, mock_hass
-    ):
-        """Test max values update check with unavailable binary sensor."""
-        coordinator.binary_sensor = "binary_sensor.test"
-
-        mock_hass.states.get.return_value = None
-
-        assert coordinator._can_update_max_values() is False
 
     @pytest.mark.asyncio
     async def test_async_setup_with_stored_data(self, coordinator, mock_hass):
