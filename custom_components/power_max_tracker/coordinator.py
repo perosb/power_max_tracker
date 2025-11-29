@@ -352,10 +352,8 @@ class PowerMaxCoordinator:
             and stats[self.source_sensor_entity_id]
             and stats[self.source_sensor_entity_id][0]["mean"] is not None
         ):
-            return (
-                stats[self.source_sensor_entity_id][0]["mean"]
-                * self.power_scaling_factor
-            )
+            # SourcePowerSensor already emits scaled values in watts
+            return stats[self.source_sensor_entity_id][0]["mean"]
         else:
             _LOGGER.warning(
                 f"No mean statistics found for {self.source_sensor_entity_id} from {start_time} to {end_time}. Stats: {stats}"
