@@ -352,10 +352,8 @@ class PowerMaxCoordinator:
             and stats[self.source_sensor_entity_id]
             and stats[self.source_sensor_entity_id][0]["mean"] is not None
         ):
-            return (
-                stats[self.source_sensor_entity_id][0]["mean"]
-                * self.power_scaling_factor
-            )
+            # SourcePowerSensor already emits scaled values in watts
+            return stats[self.source_sensor_entity_id][0]["mean"]
         else:
             _LOGGER.warning(
                 f"No mean statistics found for {self.source_sensor_entity_id} from {start_time} to {end_time}. Stats: {stats}"
@@ -382,8 +380,7 @@ class PowerMaxCoordinator:
 
             if hourly_avg_watts is not None and hourly_avg_watts >= 0:
                 hourly_avg_kw = self._watts_to_kilowatts(hourly_avg_watts)
-                if self._can_update_max_values():
-                    self._update_max_values_with_timestamp(hourly_avg_kw, hour_end)
+                self._update_max_values_with_timestamp(hourly_avg_kw, hour_end)
 
         await self._save_max_values_data()
         await self._update_entities("range update")
@@ -408,16 +405,10 @@ class PowerMaxCoordinator:
                 _LOGGER.debug(
                     f"Hourly average power for {start_time} to {end_time}: {hourly_avg_kw} kW (from {hourly_avg_watts} W)"
                 )
-                # Check binary sensor state
-                if self._can_update_max_values():
-                    if self._update_max_values_with_timestamp(hourly_avg_kw, now):
-                        await self._save_max_values_data()
-                        # Force sensor update
-                        await self._update_entities("hourly update")
-                else:
-                    _LOGGER.debug(
-                        "Skipping max values update due to binary sensor state"
-                    )
+                if self._update_max_values_with_timestamp(hourly_avg_kw, now):
+                    await self._save_max_values_data()
+                    # Force sensor update
+                    await self._update_entities("hourly update")
             else:
                 _LOGGER.debug(
                     f"Skipping negative hourly average power: {hourly_avg_watts} W"
@@ -476,15 +467,6 @@ class PowerMaxCoordinator:
                 f"No valid entities found for {update_type} for {self.source_sensor}"
             )
 
-    def _can_update_max_values(self):
-        """Check if max values can be updated based on binary sensor state."""
-        if not self.binary_sensor:
-            return True  # No binary sensor configured, allow updates
-        state = self.hass.states.get(self.binary_sensor)
-        if state is None or state.state == "unavailable":
-            _LOGGER.debug(f"Binary sensor {self.binary_sensor} is unavailable")
-            return False
-        return state.state == "on"  # Only update if sensor is True (on)
 
     async def _async_reset_monthly(self, now):
         """Reset max values if it's the 1st of the month."""

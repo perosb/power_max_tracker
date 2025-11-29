@@ -21,26 +21,14 @@ async def async_setup(hass: HomeAssistant, config: dict):
         _LOGGER.debug("Running update_max_values_service")
         for coord in hass.data.get(DOMAIN, {}).values():
             if isinstance(coord, PowerMaxCoordinator):
-                # Only update coordinators that can update max values (respect binary sensor gating)
-                if coord._can_update_max_values():
-                    await coord.async_update_max_values_from_midnight()
-                else:
-                    _LOGGER.debug(
-                        f"Skipping update_max_values for {coord.source_sensor} due to binary sensor gating"
-                    )
+                await coord.async_update_max_values_from_midnight()
 
     async def reset_max_values_service(call: ServiceCall) -> None:
         """Service to reset max values to 0."""
         _LOGGER.debug("Running reset_max_values_service")
         for coord in hass.data.get(DOMAIN, {}).values():
             if isinstance(coord, PowerMaxCoordinator):
-                # Only update coordinators that can update max values (respect binary sensor gating)
-                if coord._can_update_max_values():
-                    await coord.async_update_max_values_to_current_month()
-                else:
-                    _LOGGER.debug(
-                        f"Skipping reset_max_values for {coord.source_sensor} due to binary sensor gating"
-                    )
+                await coord.async_update_max_values_to_current_month()
 
     if not hass.services.has_service(DOMAIN, "update_max_values"):
         hass.services.async_register(

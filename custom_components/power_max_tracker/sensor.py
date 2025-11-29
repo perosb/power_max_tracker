@@ -376,6 +376,7 @@ class SourcePowerSensor(GatedSensorEntity):
                             self._coordinator.start_time
                             and self._coordinator.stop_time
                             and self._coordinator.time_scaling_factor is not None
+                            and self._coordinator.time_scaling_factor != 1.0
                             and self._is_time_in_window(dt_util.utcnow())
                         ):
                             scaled_value *= self._coordinator.time_scaling_factor
@@ -507,73 +508,62 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
         )
 
         async def _async_state_changed(event):
-            """Handle state changes of source or binary sensor."""
+            """Handle state changes of scaled source sensor."""
             now = dt_util.utcnow()
             if self._last_time is None:
                 self._last_time = now
                 return
-            if self._can_update():
-                source_state = self.hass.states.get(self._source_sensor)
-                if source_state is not None and source_state.state not in (
-                    "unavailable",
-                    "unknown",
-                ):
-                    try:
-                        current_power = float(source_state.state)
-                        original_power = max(0.0, current_power)
-                        current_power = original_power * (
-                            self._coordinator.power_scaling_factor
-                        )  # Apply power scaling factor
+            # Always process updates from the scaled SourcePowerSensor
+            # Use the scaled SourcePowerSensor instead of raw source sensor
+            source_entity_id = (
+                self._coordinator.source_sensor_entity_id or self._source_sensor
+            )
+            source_state = self.hass.states.get(source_entity_id)
+            if source_state is not None and source_state.state not in (
+                "unavailable",
+                "unknown",
+            ):
+                try:
+                    current_power = float(source_state.state)
+                    # SourcePowerSensor already emits scaled values in watts
+                    # No additional scaling needed since SourcePowerSensor handles it
 
-                        # Apply time-based scaling if configured and within time window
-                        time_scaling_applied = False
-                        if (
-                            self._coordinator.start_time
-                            and self._coordinator.stop_time
-                            and self._coordinator.time_scaling_factor is not None
-                            and self._is_time_in_window(now)
-                        ):
-                            current_power *= self._coordinator.time_scaling_factor
-                            time_scaling_applied = True
-
-                        self._log_scaling_applied(
-                            "HourlyAveragePowerSensor",
-                            original_power,
-                            current_power,
-                            time_scaling_applied,
+                    delta_seconds = (now - self._last_time).total_seconds()
+                    if delta_seconds > 0:
+                        # Average power in W
+                        avg_power = (self._last_power + current_power) / 2
+                        # Energy in kWh
+                        delta_energy = (
+                            avg_power
+                            * delta_seconds
+                            * KILOWATT_HOURS_PER_WATT_HOUR
+                            / SECONDS_PER_HOUR
                         )
-
-                        delta_seconds = (now - self._last_time).total_seconds()
-                        if delta_seconds > 0:
-                            # Average power in W
-                            avg_power = (self._last_power + current_power) / 2
-                            # Energy in kWh
-                            delta_energy = (
-                                avg_power
-                                * delta_seconds
-                                * KILOWATT_HOURS_PER_WATT_HOUR
-                                / SECONDS_PER_HOUR
-                            )
-                            self._accumulated_energy += delta_energy
-                        self._last_power = current_power
-                        self._last_time = now
-                    except (ValueError, TypeError):
-                        _LOGGER.warning(
-                            f"Invalid state for {self._source_sensor}: {source_state.state}"
-                        )
-                        self._last_power = 0.0
-                else:
-                    _LOGGER.debug(
-                        f"Source sensor {self._source_sensor} unavailable or unknown"
+                        self._accumulated_energy += delta_energy
+                    self._last_power = current_power
+                    self._last_time = now
+                except (ValueError, TypeError):
+                    _LOGGER.warning(
+                        f"Invalid state for {source_entity_id}: {source_state.state}"
                     )
                     self._last_power = 0.0
             else:
+                _LOGGER.debug(
+                    f"Source sensor {source_entity_id} unavailable or unknown"
+                )
                 self._last_power = 0.0
             await self._save_state()
             self.async_write_ha_state()
 
-        # Track state changes of source and binary sensors
-        self._setup_state_change_tracking(self._source_sensor, _async_state_changed)
+        # Track state changes of scaled source sensor
+        scaled_source_sensor = (
+            self._coordinator.source_sensor_entity_id or self._source_sensor
+        )
+        self.async_on_remove(
+            async_track_state_change_event(
+                self.hass, [scaled_source_sensor], _async_state_changed
+            )
+        )
 
     @property
     def native_value(self):
