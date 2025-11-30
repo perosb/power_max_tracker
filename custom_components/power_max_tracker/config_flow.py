@@ -154,7 +154,7 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_PRICE_PER_KW: selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=0.0,
-                    max=100.0,
+                    max=200.0,
                     step=0.001,
                     mode=selector.NumberSelectorMode.BOX,
                 )
