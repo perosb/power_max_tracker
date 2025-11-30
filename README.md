@@ -41,7 +41,7 @@ Add the integration via the Home Assistant UI or `configuration.yaml`.
    - **Source Sensor**: The power sensor to track (must provide watts).
    - **Number of Max Values**: Number of max power sensors (1-10, default 2).
    - **Monthly Reset**: Reset max values on the 1st of each month.
-   - **Price per kW**: Electricity price per kilowatt (0.01-100.0, default 0.0). When set to 0, no cost sensor is created.
+   - **Price per kW**: Electricity price per kilowatt (0.01-200.0, default 0.0). When set to 0, no cost sensor is created.
    - **Power Scaling Factor**: **Automatically detected** based on source sensor's unit_of_measurement. No manual configuration needed.
 4. Configure the gating options (choose one):
    - **Binary Sensor**: Optional binary sensor to gate updates (only updates when "on").
@@ -71,7 +71,7 @@ sensor:
 - `num_max_values` (optional, default: 2): Number of max power sensors (1–10).
 - `monthly_reset` (optional, default: `false`): Reset max values to `0` on the 1st of each month.
 - `binary_sensor` (optional): A binary sensor (e.g., `binary_sensor.power_enabled`) to gate updates; only updates when `"on"`. Mutually exclusive with time-based scaling options.
-- `price_per_kw` (optional, default: 0.0): Electricity price per kilowatt for cost calculations (0.01-100.0). When set to 0, no cost sensor is created.
+- `price_per_kw` (optional, default: 0.0): Electricity price per kilowatt for cost calculations (0.01-200). When set to 0, no cost sensor is created.
 - `power_scaling_factor` (optional, default: 1.0): **Deprecated**. Scaling factor is now automatically detected based on source sensor's unit_of_measurement.
 - `start_time` (optional, default: "00:00"): Start time for time-based scaling in HH:MM format. Mutually exclusive with binary_sensor.
 - `stop_time` (optional, default: "23:59"): Stop time for time-based scaling in HH:MM format. Mutually exclusive with binary_sensor.
