@@ -4,6 +4,8 @@
 
 Tracks maximum hourly average power values from a power sensor, with optional gating by binary sensor or time windows. Creates sensors for max values, averages, costs, and real-time tracking.
 
+*Swedish: Spårar effektvärden från en effektsensor för att enkelt kunna påverka din effekttariff. Valfri styrning via binär sensor eller tidsfönster. Skapar sensorer för maxvärden, medelvärden, kostnader och realtidsspårning.*
+
 ## Features
 - **Max Power Sensors**: Top hourly average power values in kW with timestamps
 - **Average & Cost Sensors**: Average of max values and monetary cost calculation
