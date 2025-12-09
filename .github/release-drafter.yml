@@ -3,32 +3,28 @@ sort-direction: ascending
 include-labels:
   - "beta"
   - "breaking-change"
-  - "bugfix"
+  - "bug"
   - "dependencies"
   - "enhancement"
-  - "feature"
   - "refactor"
 categories:
-  - title: "💥 Breaking changes"
+  - title: "Breaking changes"
     label: "breaking-change"
 
-  - title: "🚧 Beta changes"
+  - title: "Beta changes"
     label: "beta"
     collapse-after: 1
 
-  - title: "✨ New features"
-    label: "feature"
-
-  - title: "🚀 Performance"
+  - title: "New features"
     label: "enhancement"
 
-  - title: "🔨 Refactor"
+  - title: "Refactor"
     label: "refactor"
 
-  - title: "🐛 Bug fixes"
-    label: "bugfix"
+  - title: "Bug fixes"
+    label: "bug"
 
-  - title: "⬆️ Dependency updates"
+  - title: "Dependency updates"
     label: "dependencies"
     collapse-after: 1
 
