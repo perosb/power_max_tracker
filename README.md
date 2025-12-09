@@ -12,6 +12,7 @@ Tracks maximum hourly average power values from a power sensor, with optional ga
 - **Real-time Source Sensor**: Mirrors input sensor with gating applied
 - **Hourly Average Sensor**: Current hour's average power calculation
 - **Flexible Gating**: Binary sensor or time-window based power scaling
+- **Single Peak per Day**: Option to track only one peak value per day instead of multiple hourly peaks
 - **Automatic Scaling**: Detects W/kW units from source sensor
 - **Services**: Manual max value updates and resets
 
@@ -29,6 +30,7 @@ Tracks maximum hourly average power values from a power sensor, with optional ga
    - **Source Sensor**: Power sensor to track (must provide W or kW)
    - **Number of Max Values**: How many top values to track (1-10)
    - **Monthly Reset**: Clear max values on 1st of each month
+   - **Single Peak per Day**: Track only one peak per day instead of multiple hourly peaks
    - **Price per kW**: Electricity cost (creates cost sensor when > 0)
 
 4. Choose gating method:
@@ -42,6 +44,7 @@ sensor:
     source_sensor: sensor.your_power_sensor
     num_max_values: 3
     monthly_reset: true
+    single_peak_per_day: false
     price_per_kw: 0.25
     # Choose one gating method:
     binary_sensor: binary_sensor.power_active  # OR
@@ -98,6 +101,7 @@ sensor:
 - **Units**: Automatically detects W/kW from source sensor's unit_of_measurement
 - **Gating**: Binary sensor and time scaling are mutually exclusive
 - **Time Windows**: Support crossing midnight (e.g., 22:00 to 06:00)
+- **Single Peak per Day**: When enabled, tracks only the highest peak per day instead of multiple hourly peaks, changing how max values are stored and averaged
 - **Negative Values**: Ignored in all calculations
 - **Storage**: Max values persist across restarts
 

@@ -20,6 +20,7 @@ from custom_components.power_max_tracker.const import (
     CONF_START_TIME,
     CONF_STOP_TIME,
     CONF_TIME_SCALING_FACTOR,
+    CONF_SINGLE_PEAK_PER_DAY,
 )
 
 
@@ -78,8 +79,9 @@ class TestPowerMaxTrackerConfigFlow:
         # Check that basic config is stored in instance variable
         assert flow._basic_config == user_input
 
+    @pytest.mark.parametrize("single_peak_per_day", [False, True])
     @pytest.mark.asyncio
-    async def test_async_step_time_config_success(self, mock_hass):
+    async def test_async_step_time_config_success(self, mock_hass, single_peak_per_day):
         """Test successful time config step."""
         flow = PowerMaxTrackerConfigFlow()
         flow.hass = mock_hass
@@ -89,6 +91,7 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_SOURCE_SENSOR: "sensor.test_power",
             CONF_MONTHLY_RESET: True,
             CONF_NUM_MAX_VALUES: 3,
+            CONF_SINGLE_PEAK_PER_DAY: single_peak_per_day,
         }
 
         time_input = {
@@ -112,6 +115,7 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_NUM_MAX_VALUES: 3,
             CONF_BINARY_SENSOR: "binary_sensor.test",
             CONF_PRICE_PER_KW: 0.0,
+            CONF_SINGLE_PEAK_PER_DAY: single_peak_per_day,
             CONF_POWER_SCALING_FACTOR: 1.0,
             CONF_START_TIME: "00:00",
             CONF_STOP_TIME: "23:59",
@@ -159,8 +163,9 @@ class TestPowerMaxTrackerConfigFlow:
         assert result["type"] == "form"
         assert result["step_id"] == "user"
 
+    @pytest.mark.parametrize("single_peak_per_day", [False, True])
     @pytest.mark.asyncio
-    async def test_async_step_import_success(self, mock_hass):
+    async def test_async_step_import_success(self, mock_hass, single_peak_per_day):
         """Test successful import step."""
         flow = PowerMaxTrackerConfigFlow()
         flow.hass = mock_hass
@@ -170,6 +175,7 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_MONTHLY_RESET: False,
             CONF_NUM_MAX_VALUES: 2,
             CONF_BINARY_SENSOR: None,
+            CONF_SINGLE_PEAK_PER_DAY: single_peak_per_day,
         }
 
         # Mock async_set_unique_id and async_create_entry
@@ -189,6 +195,7 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_NUM_MAX_VALUES: 2,
             CONF_BINARY_SENSOR: None,
             CONF_PRICE_PER_KW: 0.0,
+            CONF_SINGLE_PEAK_PER_DAY: single_peak_per_day,
             CONF_POWER_SCALING_FACTOR: 1.0,
             CONF_START_TIME: "00:00",
             CONF_STOP_TIME: "23:59",
@@ -255,8 +262,11 @@ class TestPowerMaxTrackerConfigFlow:
         assert flow._basic_config == user_input
         assert flow._reconfigure_entry == mock_entry
 
+    @pytest.mark.parametrize("single_peak_per_day", [False, True])
     @pytest.mark.asyncio
-    async def test_async_step_reconfigure_time_success(self, mock_hass):
+    async def test_async_step_reconfigure_time_success(
+        self, mock_hass, single_peak_per_day
+    ):
         """Test successful reconfiguration time step."""
         flow = PowerMaxTrackerConfigFlow()
         flow.hass = mock_hass
@@ -276,6 +286,7 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_SOURCE_SENSOR: "sensor.new_power",
             CONF_MONTHLY_RESET: True,
             CONF_NUM_MAX_VALUES: 5,
+            CONF_SINGLE_PEAK_PER_DAY: single_peak_per_day,
         }
 
         time_input = {
@@ -294,6 +305,7 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_NUM_MAX_VALUES: 5,
             CONF_BINARY_SENSOR: "binary_sensor.new",
             CONF_PRICE_PER_KW: 0.0,
+            CONF_SINGLE_PEAK_PER_DAY: single_peak_per_day,
             CONF_POWER_SCALING_FACTOR: 1.0,
             CONF_START_TIME: "00:00",
             CONF_STOP_TIME: "23:59",

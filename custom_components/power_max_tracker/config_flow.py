@@ -13,6 +13,7 @@ from .const import (
     CONF_START_TIME,
     CONF_STOP_TIME,
     CONF_TIME_SCALING_FACTOR,
+    CONF_SINGLE_PEAK_PER_DAY,
 )
 
 
@@ -167,6 +168,7 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     mode=selector.NumberSelectorMode.BOX,
                 )
             ),
+            CONF_SINGLE_PEAK_PER_DAY: selector.BooleanSelector(),
         }
 
     def _get_reconfigure_schema(self, entry):
@@ -190,6 +192,10 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_POWER_SCALING_FACTOR,
                 default=entry.data.get(CONF_POWER_SCALING_FACTOR, 1.0),
             ): fields[CONF_POWER_SCALING_FACTOR],
+            vol.Optional(
+                CONF_SINGLE_PEAK_PER_DAY,
+                default=entry.data.get(CONF_SINGLE_PEAK_PER_DAY, False),
+            ): fields[CONF_SINGLE_PEAK_PER_DAY],
         }
 
         return vol.Schema(schema_dict)
@@ -288,6 +294,9 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_NUM_MAX_VALUES
                 ],
                 vol.Optional(CONF_PRICE_PER_KW, default=0.0): fields[CONF_PRICE_PER_KW],
+                vol.Optional(CONF_SINGLE_PEAK_PER_DAY, default=False): fields[
+                    CONF_SINGLE_PEAK_PER_DAY
+                ],
             }
         )
 
@@ -298,6 +307,7 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_MONTHLY_RESET: data.get(CONF_MONTHLY_RESET, False),
             CONF_NUM_MAX_VALUES: int(data.get(CONF_NUM_MAX_VALUES, 2)),
             CONF_PRICE_PER_KW: float(data.get(CONF_PRICE_PER_KW, 0.0)),
+            CONF_SINGLE_PEAK_PER_DAY: data.get(CONF_SINGLE_PEAK_PER_DAY, False),
             CONF_BINARY_SENSOR: data.get(CONF_BINARY_SENSOR),
             CONF_POWER_SCALING_FACTOR: float(data.get(CONF_POWER_SCALING_FACTOR, 1.0)),
             CONF_START_TIME: data.get(CONF_START_TIME, "00:00"),

@@ -609,3 +609,145 @@ class TestPowerMaxCoordinator:
         mock_listener1.assert_called_once()
         mock_listener2.assert_called_once()
         assert coordinator._listeners == []
+
+    def test_single_peak_per_day_false_uses_hourly_logic(self, coordinator):
+        """Test that single_peak_per_day=False uses hourly peak logic."""
+        now = datetime(2025, 12, 9, 10, 0, 0)
+
+        # Ensure single_peak_per_day is False (default)
+        assert coordinator.single_peak_per_day is False
+
+        # Add multiple values - should work like hourly peaks
+        result1 = coordinator._update_max_values_with_timestamp(5.0, now)
+        assert result1 is True
+        assert coordinator.max_values == [5.0, 0.0]
+
+        result2 = coordinator._update_max_values_with_timestamp(3.0, now)
+        assert result2 is True
+        assert coordinator.max_values == [5.0, 3.0]
+
+    def test_single_peak_per_day_true_uses_daily_logic(self, coordinator):
+        """Test that single_peak_per_day=True uses daily peak logic."""
+        # Set single_peak_per_day to True
+        coordinator.single_peak_per_day = True
+
+        now = datetime(2025, 12, 9, 10, 0, 0)  # Dec 9, 2025, 10:00 AM
+
+        # Add first value for today
+        result1 = coordinator._update_max_values_with_timestamp(5.0, now)
+        assert result1 is True
+        assert coordinator.max_values == [5.0, 0.0]
+        assert coordinator.max_values_timestamps[0].date() == now.date()
+
+        # Add lower value for same day - should not update
+        result2 = coordinator._update_max_values_with_timestamp(3.0, now)
+        assert result2 is False  # No change because 3.0 < 5.0
+        assert coordinator.max_values == [5.0, 0.0]
+
+        # Add higher value for same day - should update
+        result3 = coordinator._update_max_values_with_timestamp(7.0, now)
+        assert result3 is True
+        assert coordinator.max_values == [7.0, 0.0]
+
+        # Add value for different day
+        tomorrow = now + timedelta(days=1)
+        result4 = coordinator._update_max_values_with_timestamp(4.0, tomorrow)
+        assert result4 is True
+        assert coordinator.max_values == [7.0, 4.0]
+        assert coordinator.max_values_timestamps[0].date() == now.date()
+        assert coordinator.max_values_timestamps[1].date() == tomorrow.date()
+
+    def test_single_peak_per_day_multiple_days(self, coordinator):
+        """Test single peak per day with multiple days and peak replacement."""
+        coordinator.single_peak_per_day = True
+
+        # Day 1: Add multiple values, should keep only the highest
+        day1_time1 = datetime(2025, 12, 9, 10, 0, 0)
+        day1_time2 = datetime(2025, 12, 9, 14, 0, 0)
+        day1_time3 = datetime(2025, 12, 9, 18, 0, 0)
+
+        coordinator._update_max_values_with_timestamp(5.0, day1_time1)
+        coordinator._update_max_values_with_timestamp(
+            8.0, day1_time2
+        )  # Higher, should replace
+        coordinator._update_max_values_with_timestamp(
+            6.0, day1_time3
+        )  # Lower, should not replace
+
+        assert coordinator.max_values == [8.0, 0.0]
+        assert coordinator.max_values_timestamps[0].date() == day1_time2.date()
+
+        # Day 2: Add value
+        day2_time = datetime(2025, 12, 10, 12, 0, 0)
+        coordinator._update_max_values_with_timestamp(9.0, day2_time)
+
+        assert coordinator.max_values == [9.0, 8.0]
+        # After sorting, 9.0 (Day 2) should be first, 8.0 (Day 1) should be second
+        assert coordinator.max_values_timestamps[0].date() == day2_time.date()
+        assert coordinator.max_values_timestamps[1].date() == day1_time2.date()
+
+        # Day 3: Add value that should become the highest
+        day3_time = datetime(2025, 12, 11, 16, 0, 0)
+        coordinator._update_max_values_with_timestamp(10.0, day3_time)
+
+        assert coordinator.max_values == [10.0, 9.0]
+        # After sorting, 10.0 (Day 3) should be first, 9.0 (Day 2) should be second
+        assert coordinator.max_values_timestamps[0].date() == day3_time.date()
+        assert coordinator.max_values_timestamps[1].date() == day2_time.date()
+
+    def test_single_peak_per_day_max_values_limit(self, coordinator):
+        """Test single peak per day respects num_max_values limit."""
+        coordinator.single_peak_per_day = True
+        coordinator.num_max_values = 2  # Limit to 2 values
+
+        # Add values for 3 different days
+        day1 = datetime(2025, 12, 9, 10, 0, 0)
+        day2 = datetime(2025, 12, 10, 10, 0, 0)
+        day3 = datetime(2025, 12, 11, 10, 0, 0)
+
+        coordinator._update_max_values_with_timestamp(5.0, day1)
+        coordinator._update_max_values_with_timestamp(6.0, day2)
+        coordinator._update_max_values_with_timestamp(
+            4.0, day3
+        )  # Should not make top 2
+
+        assert coordinator.max_values == [6.0, 5.0]  # Top 2 values
+        assert coordinator.max_values_timestamps[0].date() == day2.date()
+        assert coordinator.max_values_timestamps[1].date() == day1.date()
+        assert len([x for x in coordinator.max_values if x > 0]) == 2
+
+    def test_single_peak_per_day_midnight_wrap_around(self, coordinator):
+        """Test single peak per day handles midnight transitions correctly."""
+        coordinator.single_peak_per_day = True
+
+        # Simulate values around midnight transition
+        # Use explicit names for clarity
+        BEFORE_MIDNIGHT = datetime(2025, 12, 9, 23, 30, 0)  # Dec 9, 11:30 PM
+        AFTER_MIDNIGHT = datetime(2025, 12, 10, 0, 30, 0)  # Dec 10, 12:30 AM
+        SAME_DAY_LATER = datetime(2025, 12, 10, 2, 0, 0)  # Dec 10, 2:00 AM
+
+        coordinator._update_max_values_with_timestamp(5.0, BEFORE_MIDNIGHT)
+        coordinator._update_max_values_with_timestamp(6.0, AFTER_MIDNIGHT)
+
+        # Both should be treated as separate days
+        assert coordinator.max_values == [6.0, 5.0]
+        assert (
+            coordinator.max_values_timestamps[0].date() == AFTER_MIDNIGHT.date()
+        )  # Dec 10
+        assert (
+            coordinator.max_values_timestamps[1].date() == BEFORE_MIDNIGHT.date()
+        )  # Dec 9
+
+        # Test updating same day after midnight
+        coordinator._update_max_values_with_timestamp(
+            7.0, SAME_DAY_LATER
+        )  # Higher value for same day
+
+        # Should update the Dec 10 entry
+        assert coordinator.max_values == [7.0, 5.0]
+        assert (
+            coordinator.max_values_timestamps[0].date() == SAME_DAY_LATER.date()
+        )  # Dec 10
+        assert (
+            coordinator.max_values_timestamps[1].date() == BEFORE_MIDNIGHT.date()
+        )  # Dec 9

@@ -17,6 +17,7 @@ from .const import (
     CONF_START_TIME,
     CONF_STOP_TIME,
     CONF_TIME_SCALING_FACTOR,
+    CONF_SINGLE_PEAK_PER_DAY,
     SECONDS_PER_HOUR,
     WATTS_TO_KILOWATTS,
     STORAGE_VERSION,
@@ -59,6 +60,7 @@ class PowerMaxCoordinator:
             self.time_scaling_factor = float(
                 entry.data.get(CONF_TIME_SCALING_FACTOR, 1.0) or 1.0
             )
+            self.single_peak_per_day = entry.data.get(CONF_SINGLE_PEAK_PER_DAY, False)
             self.unique_id = entry.entry_id
         else:
             # YAML mode
@@ -75,6 +77,7 @@ class PowerMaxCoordinator:
             self.time_scaling_factor = float(
                 yaml_config.get(CONF_TIME_SCALING_FACTOR, 1.0) or 1.0
             )
+            self.single_peak_per_day = yaml_config.get(CONF_SINGLE_PEAK_PER_DAY, False)
             self.unique_id = yaml_unique_id
 
         self.source_sensor_entity_id = None  # Set dynamically after entity registration
@@ -281,6 +284,27 @@ class PowerMaxCoordinator:
     ) -> bool:
         """Update max values list with a new value and its timestamp.
 
+        Behavior depends on single_peak_per_day setting:
+        - When False: Tracks multiple hourly peaks (default behavior)
+        - When True: Tracks only one peak per day (highest value for each date)
+
+        Args:
+            new_value: New power value in kW to potentially add to max values
+            timestamp: Timestamp when this value was recorded
+
+        Returns:
+            True if max values were updated, False otherwise
+        """
+        if self.single_peak_per_day:
+            return self._update_daily_max_values_with_timestamp(new_value, timestamp)
+        else:
+            return self._update_hourly_max_values_with_timestamp(new_value, timestamp)
+
+    def _update_hourly_max_values_with_timestamp(
+        self, new_value: float, timestamp: datetime
+    ) -> bool:
+        """Update max values list with a new hourly value and its timestamp.
+
         Args:
             new_value: New power value in kW to potentially add to max values
             timestamp: Timestamp when this value was recorded
@@ -320,6 +344,79 @@ class PowerMaxCoordinator:
         self.max_values = new_max_values
         self.max_values_timestamps = new_timestamps
         return True
+
+    def _sort_and_slice_combined(self, combined_list):
+        """Sort combined list by value descending and slice to num_max_values.
+
+        Args:
+            combined_list: List of (value, timestamp) tuples
+
+        Returns:
+            Tuple of (values_list, timestamps_list)
+        """
+        combined_list.sort(key=lambda x: x[0], reverse=True)
+        sliced = combined_list[: self.num_max_values]
+        if not sliced:
+            return [], []
+        values, timestamps = zip(*sliced)
+        return list(values), list(timestamps)
+
+    def _update_daily_max_values_with_timestamp(
+        self, new_value: float, timestamp: datetime
+    ) -> bool:
+        """Update max values list with a new daily value and its timestamp.
+
+        When single_peak_per_day is enabled, only one peak per day is kept.
+        The system tracks the highest peak for each day, up to num_max_values days.
+
+        Args:
+            new_value: New power value in kW to potentially add to max values
+            timestamp: Timestamp when this value was recorded
+
+        Returns:
+            True if max values were updated, False otherwise
+        """
+        new_date = timestamp.date()
+
+        # Check if we already have a value for this date
+        existing_date_index = None
+        for i, ts in enumerate(self.max_values_timestamps):
+            if ts and ts.date() == new_date:
+                existing_date_index = i
+                break
+
+        if existing_date_index is not None:
+            # We already have a value for this date
+            if new_value <= self.max_values[existing_date_index]:
+                # New value is not higher, no change needed
+                return False
+            else:
+                # New value is higher, replace the existing value
+                self.max_values[existing_date_index] = new_value
+                self.max_values_timestamps[existing_date_index] = timestamp
+                # Re-sort the list since we updated a value
+                combined = list(zip(self.max_values, self.max_values_timestamps))
+                self.max_values, self.max_values_timestamps = (
+                    self._sort_and_slice_combined(combined)
+                )
+                return True
+        else:
+            # No value for this date yet, add it if it's among the top values
+            # Create a combined list with the new value
+            combined_values = self.max_values + [new_value]
+            combined_timestamps = self.max_values_timestamps + [timestamp]
+
+            # Sort by value descending
+            combined = list(zip(combined_values, combined_timestamps))
+            new_max_values, new_timestamps = self._sort_and_slice_combined(combined)
+
+            # Check if the list actually changed
+            if new_max_values != self.max_values:
+                self.max_values = new_max_values
+                self.max_values_timestamps = new_timestamps
+                return True
+
+            return False
 
     async def _query_hourly_statistics(
         self, start_time: datetime, end_time: datetime
@@ -466,7 +563,6 @@ class PowerMaxCoordinator:
             _LOGGER.error(
                 f"No valid entities found for {update_type} for {self.source_sensor}"
             )
-
 
     async def _async_reset_monthly(self, now):
         """Reset max values if it's the 1st of the month."""

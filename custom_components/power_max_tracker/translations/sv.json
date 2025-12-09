@@ -8,12 +8,14 @@
           "source_sensor": "Källsensor",
           "num_max_values": "Antal Maxvärden",
           "monthly_reset": "Månadsåterställning",
+          "single_peak_per_day": "En topp per dag",
           "price_per_kw": "Effektavgift per kW"
         },
         "data_description": {
           "source_sensor": "Välj effektgivaren att spåra (måste ge watt).",
           "num_max_values": "Antal maximala effektvärden att spåra (1-10).",
           "monthly_reset": "Återställ maximala värden till 0 den 1:a varje månad.",
+          "single_peak_per_day": "Spåra endast ett toppvärde per dag istället för flera timtoppar.",
           "price_per_kw": "Effektavgift per kilowatt för elkostnadskalkyler."
         },
         "submit": "Fortsätt till tidsinställningar"
@@ -25,6 +27,7 @@
           "source_sensor": "Källsensor",
           "monthly_reset": "Månadsåterställning",
           "num_max_values": "Antal Maxvärden",
+          "single_peak_per_day": "En topp per dag",
           "price_per_kw": "Effektavgift per kW",
           "power_scaling_factor": "Effektskalningsfaktor"
         },
@@ -32,6 +35,7 @@
           "source_sensor": "Välj effektgivaren att spåra (måste ge watt).",
           "monthly_reset": "Återställ maximala värden till 0 den 1:a varje månad.",
           "num_max_values": "Antal maximala effektvärden att spåra (1-10).",
+          "single_peak_per_day": "Spåra endast ett toppvärde per dag istället för flera timtoppar.",
           "price_per_kw": "Effektavgift per kilowatt för elkostnadskalkyler.",
           "power_scaling_factor": "Skalningsfaktor att tillämpa på effektvärden (automatiskt detekterad om inte inställd)."
         },
