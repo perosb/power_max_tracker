@@ -13,6 +13,7 @@ from .const import (
     CONF_START_TIME,
     CONF_STOP_TIME,
     CONF_TIME_SCALING_FACTOR,
+    CONF_SINGLE_PEAK_PER_DAY,
 )
 
 
@@ -167,6 +168,7 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     mode=selector.NumberSelectorMode.BOX,
                 )
             ),
+            CONF_SINGLE_PEAK_PER_DAY: selector.BooleanSelector(),
         }
 
     def _get_reconfigure_schema(self, entry):
@@ -190,6 +192,10 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_POWER_SCALING_FACTOR,
                 default=entry.data.get(CONF_POWER_SCALING_FACTOR, 1.0),
             ): fields[CONF_POWER_SCALING_FACTOR],
+            vol.Optional(
+                CONF_SINGLE_PEAK_PER_DAY,
+                default=entry.data.get(CONF_SINGLE_PEAK_PER_DAY, False),
+            ): fields[CONF_SINGLE_PEAK_PER_DAY],
         }
 
         return vol.Schema(schema_dict)

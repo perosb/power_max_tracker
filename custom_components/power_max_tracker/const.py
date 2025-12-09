@@ -8,6 +8,7 @@ CONF_POWER_SCALING_FACTOR = "power_scaling_factor"
 CONF_START_TIME = "start_time"
 CONF_STOP_TIME = "stop_time"
 CONF_TIME_SCALING_FACTOR = "time_scaling_factor"
+CONF_SINGLE_PEAK_PER_DAY = "single_peak_per_day"
 
 # Constants for calculations
 SECONDS_PER_HOUR = 3600
