@@ -21,6 +21,8 @@ from custom_components.power_max_tracker.const import (
     CONF_STOP_TIME,
     CONF_TIME_SCALING_FACTOR,
     CONF_SINGLE_PEAK_PER_DAY,
+    CONF_CYCLE_TYPE,
+    CYCLE_HOURLY,
 )
 
 
@@ -120,6 +122,7 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_START_TIME: "00:00",
             CONF_STOP_TIME: "23:59",
             CONF_TIME_SCALING_FACTOR: None,
+            CONF_CYCLE_TYPE: CYCLE_HOURLY,
         }
         flow.async_create_entry.assert_called_once_with(
             title="Power Max Tracker (test_power)", data=expected_data
@@ -200,6 +203,7 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_START_TIME: "00:00",
             CONF_STOP_TIME: "23:59",
             CONF_TIME_SCALING_FACTOR: None,
+            CONF_CYCLE_TYPE: CYCLE_HOURLY,
         }
         flow.async_create_entry.assert_called_once_with(
             title="Power Max Tracker (test_power)", data=expected_data
@@ -310,6 +314,7 @@ class TestPowerMaxTrackerConfigFlow:
             CONF_START_TIME: "00:00",
             CONF_STOP_TIME: "23:59",
             CONF_TIME_SCALING_FACTOR: None,
+            CONF_CYCLE_TYPE: CYCLE_HOURLY,
         }
         flow.async_update_reload_and_abort.assert_called_once_with(
             mock_entry, data=expected_data

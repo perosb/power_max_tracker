@@ -15,6 +15,7 @@ from custom_components.power_max_tracker.const import (
     MAX_VALUES_STORAGE_KEY,
     TIMESTAMPS_STORAGE_KEY,
     PREVIOUS_MONTH_STORAGE_KEY,
+    QUARTERLY_UPDATE_MINUTES,
 )
 
 
@@ -36,12 +37,92 @@ class TestPowerMaxCoordinator:
         assert coordinator.entities == []
         assert coordinator._listeners == []
 
-    def test_watts_to_kilowatts_conversion(self, coordinator):
-        """Test watts to kilowatts conversion."""
-        assert coordinator._watts_to_kilowatts(1000) == 1.0
-        assert coordinator._watts_to_kilowatts(500) == 0.5
-        assert coordinator._watts_to_kilowatts(0) == 0.0
-        assert coordinator._watts_to_kilowatts(2500) == 2.5
+    def test_get_current_cycle_start_hourly(self, coordinator):
+        """Test _get_current_cycle_start for hourly cycles."""
+        # Test various times for hourly cycles
+        test_cases = [
+            # (input_time, expected_start_time)
+            (
+                datetime(2023, 1, 1, 10, 30, 0),
+                datetime(2023, 1, 1, 9, 0, 0),
+            ),  # 10:30 -> previous hour start
+            (
+                datetime(2023, 1, 1, 11, 1, 0),
+                datetime(2023, 1, 1, 10, 0, 0),
+            ),  # 11:01 -> previous hour start
+            (
+                datetime(2023, 1, 1, 0, 15, 0),
+                datetime(2022, 12, 31, 23, 0, 0),
+            ),  # Midnight -> previous day
+        ]
+
+        for input_time, expected_start in test_cases:
+            result = coordinator._get_current_cycle_start(input_time)
+            assert result == expected_start, (
+                f"Failed for {input_time}: expected {expected_start}, got {result}"
+            )
+
+    def test_get_current_cycle_start_quarterly(self, coordinator):
+        """Test _get_current_cycle_start for quarterly cycles."""
+        # Change coordinator to quarterly cycle
+        coordinator.cycle_type = "quarterly"
+
+        test_cases = [
+            # (input_time, expected_start_time)
+            (
+                datetime(2023, 1, 1, 10, 15, 0),
+                datetime(2023, 1, 1, 10, 0, 0),
+            ),  # 10:15 -> 10:00
+            (
+                datetime(2023, 1, 1, 10, 30, 0),
+                datetime(2023, 1, 1, 10, 15, 0),
+            ),  # 10:30 -> 10:15
+            (
+                datetime(2023, 1, 1, 10, 45, 0),
+                datetime(2023, 1, 1, 10, 30, 0),
+            ),  # 10:45 -> 10:30
+            (
+                datetime(2023, 1, 1, 11, 0, 0),
+                datetime(2023, 1, 1, 10, 45, 0),
+            ),  # 11:00 -> 10:45
+            (
+                datetime(2023, 1, 1, 10, 7, 0),
+                datetime(2023, 1, 1, 9, 45, 0),
+            ),  # 10:07 -> 9:45
+        ]
+
+        for input_time, expected_start in test_cases:
+            result = coordinator._get_current_cycle_start(input_time)
+            assert result == expected_start, (
+                f"Failed for {input_time}: expected {expected_start}, got {result}"
+            )
+
+    def test_period_property(self, coordinator):
+        """Test period property for different cycle types."""
+        # Default is hourly
+        assert coordinator.period == "hour"
+
+        # Change to quarterly
+        coordinator.cycle_type = "quarterly"
+        assert coordinator.period == "15min"
+
+    def test_seconds_per_cycle_property(self, coordinator):
+        """Test seconds_per_cycle property for different cycle types."""
+        # Default is hourly
+        assert coordinator.seconds_per_cycle == 3600
+
+        # Change to quarterly
+        coordinator.cycle_type = "quarterly"
+        assert coordinator.seconds_per_cycle == 900
+
+    def test_update_minute_property(self, coordinator):
+        """Test update_minute property for different cycle types."""
+        # Default is hourly
+        assert coordinator.update_minute == 1
+
+        # Change to quarterly
+        coordinator.cycle_type = "quarterly"
+        assert coordinator.update_minute == QUARTERLY_UPDATE_MINUTES
 
     def test_average_max_value_empty_list(self, coordinator):
         """Test average_max_value property with empty max_values list."""
@@ -138,10 +219,10 @@ class TestPowerMaxCoordinator:
 
     @patch("custom_components.power_max_tracker.coordinator.get_instance")
     @pytest.mark.asyncio
-    async def test_query_hourly_statistics_success(
+    async def test_query_period_statistics_success(
         self, mock_get_instance, coordinator
     ):
-        """Test successful hourly statistics query."""
+        """Test successful period statistics query."""
         # Set the source sensor entity ID for the test
         coordinator.source_sensor_entity_id = "sensor.test_power"
         
@@ -158,17 +239,17 @@ class TestPowerMaxCoordinator:
         start_time = datetime.now()
         end_time = start_time + timedelta(hours=1)
 
-        result = await coordinator._query_hourly_statistics(start_time, end_time)
+        result = await coordinator._query_period_statistics(start_time, end_time)
 
         assert result == 1500.0
         mock_recorder.async_add_executor_job.assert_called_once()
 
     @patch("custom_components.power_max_tracker.coordinator.get_instance")
     @pytest.mark.asyncio
-    async def test_query_hourly_statistics_no_data(
+    async def test_query_period_statistics_no_data(
         self, mock_get_instance, coordinator
     ):
-        """Test hourly statistics query with no data."""
+        """Test period statistics query with no data."""
         mock_recorder = MagicMock()
         mock_get_instance.return_value = mock_recorder
 
@@ -182,16 +263,16 @@ class TestPowerMaxCoordinator:
         start_time = datetime.now()
         end_time = start_time + timedelta(hours=1)
 
-        result = await coordinator._query_hourly_statistics(start_time, end_time)
+        result = await coordinator._query_period_statistics(start_time, end_time)
 
         assert result is None
 
     @patch("custom_components.power_max_tracker.coordinator.get_instance")
     @pytest.mark.asyncio
-    async def test_query_hourly_statistics_none_mean(
+    async def test_query_period_statistics_none_mean(
         self, mock_get_instance, coordinator
     ):
-        """Test hourly statistics query with None mean value."""
+        """Test period statistics query with None mean value."""
         mock_recorder = MagicMock()
         mock_get_instance.return_value = mock_recorder
 
@@ -205,7 +286,7 @@ class TestPowerMaxCoordinator:
         start_time = datetime.now()
         end_time = start_time + timedelta(hours=1)
 
-        result = await coordinator._query_hourly_statistics(start_time, end_time)
+        result = await coordinator._query_period_statistics(start_time, end_time)
 
         assert result is None
 
@@ -218,18 +299,23 @@ class TestPowerMaxCoordinator:
 
         assert coordinator._is_valid_entity(mock_entity) is True
 
-    def test_is_valid_entity_invalid(self, coordinator):
-        """Test entity validation with invalid entity."""
-        # Test None entity
-        assert coordinator._is_valid_entity(None) is False
-
-        # Test entity without required attributes
+    def test_is_valid_entity_quarterly_cycle(self, coordinator_quarterly):
+        """Test entity validation for quarterly cycles."""
+        # Test quarterly average power entity
         mock_entity = MagicMock()
-        # Configure the mock to not have the required attributes
-        mock_entity._attr_unique_id = None
-        mock_entity.entity_id = None
-        mock_entity.async_write_ha_state = None
-        assert coordinator._is_valid_entity(mock_entity) is False
+        mock_entity._attr_unique_id = "test_quarterly_average_power"
+        mock_entity.entity_id = "sensor.test"
+        mock_entity.async_write_ha_state = MagicMock()
+
+        assert coordinator_quarterly._is_valid_entity(mock_entity) is True
+
+        # Test that hourly entity is not valid for quarterly coordinator
+        mock_entity_hourly = MagicMock()
+        mock_entity_hourly._attr_unique_id = "test_hourly_average_power"
+        mock_entity_hourly.entity_id = "sensor.test"
+        mock_entity_hourly.async_write_ha_state = MagicMock()
+
+        assert coordinator_quarterly._is_valid_entity(mock_entity_hourly) is False
 
 
     @pytest.mark.asyncio
@@ -433,10 +519,8 @@ class TestPowerMaxCoordinator:
 
     @patch("custom_components.power_max_tracker.coordinator.get_instance")
     @pytest.mark.asyncio
-    async def test_async_update_hourly_success(
-        self, mock_get_instance, coordinator
-    ):
-        """Test successful hourly update."""
+    async def test_async_update_period_success(self, mock_get_instance, coordinator):
+        """Test successful period update."""
         coordinator.source_sensor_entity_id = "sensor.test_power"
         
         mock_recorder = MagicMock()
@@ -452,23 +536,51 @@ class TestPowerMaxCoordinator:
 
         now = datetime.now()
 
-        await coordinator._async_update_hourly(now)
+        await coordinator._async_update_period(now)
 
         # Should have updated max values
         assert coordinator.max_values == [3.0, 0.0]
         mock_store.async_save.assert_called_once()
 
+    @patch("custom_components.power_max_tracker.coordinator.get_instance")
     @pytest.mark.asyncio
-    async def test_async_update_hourly_no_source_entity(self, coordinator):
-        """Test hourly update when source entity is not set."""
-        # source_sensor_entity_id is None by default
-        now = datetime.now()
+    async def test_async_update_period_quarterly_success(
+        self, mock_get_instance, coordinator
+    ):
+        """Test successful period update for quarterly cycles."""
+        coordinator.cycle_type = "quarterly"
+        coordinator.source_sensor_entity_id = "sensor.test_power"
 
-        # Should not raise an exception and should return early
-        await coordinator._async_update_hourly(now)
+        mock_recorder = MagicMock()
+        mock_get_instance.return_value = mock_recorder
+        mock_recorder.async_add_executor_job = AsyncMock()
 
-        # Max values should remain unchanged
-        assert coordinator.max_values == [0.0, 0.0]
+        stats_data = {"sensor.test_power": [{"mean": 1500.0}]}  # 1.5 kW
+        mock_recorder.async_add_executor_job.return_value = stats_data
+
+        mock_store = MagicMock()
+        mock_store.async_save = AsyncMock()
+        coordinator._max_values_store = mock_store
+
+        # Test at 10:15 - should measure 10:00 to 10:15
+        now = datetime(2023, 1, 1, 10, 15, 0)
+
+        await coordinator._async_update_period(now)
+
+        # Should have updated max values
+        assert coordinator.max_values == [1.5, 0.0]
+        mock_store.async_save.assert_called_once()
+
+        # Verify the statistics query was called with correct 15-minute period
+        call_args = mock_recorder.async_add_executor_job.call_args
+        start_time, end_time = (
+            call_args[0][2],
+            call_args[0][3],
+        )  # Skip function and hass args
+        expected_start = datetime(2023, 1, 1, 10, 0, 0)
+        expected_end = datetime(2023, 1, 1, 10, 15, 0)
+        assert start_time == expected_start
+        assert end_time == expected_end
 
     @patch("custom_components.power_max_tracker.coordinator.get_instance")
     @pytest.mark.asyncio

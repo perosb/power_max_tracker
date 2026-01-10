@@ -9,14 +9,16 @@
           "num_max_values": "Number of Max Values",
           "monthly_reset": "Monthly Reset",
           "single_peak_per_day": "Single Peak per Day",
-          "price_per_kw": "Electricity Fee per kW"
+          "price_per_kw": "Electricity Fee per kW",
+          "cycle_type": "Time Interval"
         },
         "data_description": {
           "source_sensor": "Select the power sensor to track (must provide watts).",
           "num_max_values": "Number of maximum power values to track (1-10).",
           "monthly_reset": "Reset maximum values to 0 on the 1st of each month.",
           "single_peak_per_day": "Track only one peak value per day instead of multiple hourly peaks.",
-          "price_per_kw": "Fee per kilowatt for electricity cost calculations."
+          "price_per_kw": "Fee per kilowatt for electricity cost calculations.",
+          "cycle_type": "Select the interval for tracking maximum power values."
         },
         "submit": "Continue to Time Settings"
       },
@@ -29,7 +31,8 @@
           "num_max_values": "Number of Max Values",
           "single_peak_per_day": "Single Peak per Day",
           "price_per_kw": "Electricity Fee per kW",
-          "power_scaling_factor": "Power Scaling Factor"
+          "power_scaling_factor": "Power Scaling Factor",
+          "cycle_type": "Time Interval"
         },
         "data_description": {
           "source_sensor": "Select the power sensor to track (must provide watts).",
@@ -37,7 +40,8 @@
           "num_max_values": "Number of maximum power values to track (1-10).",
           "single_peak_per_day": "Track only one peak value per day instead of multiple hourly peaks.",
           "price_per_kw": "Fee per kilowatt for electricity cost calculations.",
-          "power_scaling_factor": "Scaling factor to apply to power values (auto-detected if not set)."
+          "power_scaling_factor": "Scaling factor to apply to power values (auto-detected if not set).",
+          "cycle_type": "Select the interval for tracking maximum power values."
         },
         "submit": "Continue to Time Settings"
       },
@@ -81,6 +85,14 @@
     "abort": {
       "already_configured": "Device is already configured",
       "reconfigure_successful": "Reconfiguration was successful."
+    }
+  },
+  "selector": {
+    "cycle_type": {
+      "options": {
+        "hourly": "Hourly",
+        "quarterly": "Quarter-hourly (15 minutes)"
+      }
     }
   }
 }

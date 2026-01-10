@@ -10,6 +10,9 @@ from custom_components.power_max_tracker.const import (
     CONF_MONTHLY_RESET,
     CONF_NUM_MAX_VALUES,
     CONF_BINARY_SENSOR,
+    CONF_CYCLE_TYPE,
+    CYCLE_HOURLY,
+    CYCLE_QUARTERLY,
     DOMAIN,
 )
 
@@ -45,11 +48,34 @@ def mock_config_entry():
         CONF_MONTHLY_RESET: False,
         CONF_NUM_MAX_VALUES: 2,
         CONF_BINARY_SENSOR: None,
+        CONF_CYCLE_TYPE: CYCLE_HOURLY,
+    }
+    return entry
+
+
+@pytest.fixture
+def mock_config_entry_quarterly():
+    """Create a mock config entry for quarterly cycles."""
+    entry = MagicMock(spec=ConfigEntry)
+    entry.entry_id = "test_entry_id_quarterly"
+    entry.domain = DOMAIN
+    entry.data = {
+        CONF_SOURCE_SENSOR: "sensor.test_power",
+        CONF_MONTHLY_RESET: False,
+        CONF_NUM_MAX_VALUES: 2,
+        CONF_BINARY_SENSOR: None,
+        CONF_CYCLE_TYPE: CYCLE_QUARTERLY,
     }
     return entry
 
 
 @pytest.fixture
 def coordinator(mock_hass, mock_config_entry):
-    """Create a PowerMaxCoordinator instance."""
+    """Create a PowerMaxCoordinator instance for hourly cycles."""
     return PowerMaxCoordinator(mock_hass, mock_config_entry)
+
+
+@pytest.fixture
+def coordinator_quarterly(mock_hass, mock_config_entry_quarterly):
+    """Create a PowerMaxCoordinator instance for quarterly cycles."""
+    return PowerMaxCoordinator(mock_hass, mock_config_entry_quarterly)

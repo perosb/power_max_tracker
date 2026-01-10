@@ -23,10 +23,18 @@ from .const import (
     CONF_MONTHLY_RESET,
     KILOWATT_HOURS_PER_WATT_HOUR,
     SECONDS_PER_HOUR,
+    CYCLE_QUARTERLY,
+    CYCLE_HOURLY,
 )
 from .coordinator import PowerMaxCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+# Mapping for cycle type display names (entity names are typically in English)
+CYCLE_NAME_MAPPING = {
+    CYCLE_QUARTERLY: "Quarterly",
+    CYCLE_HOURLY: "Hourly",
+}
 
 
 class MockEntry:
@@ -197,8 +205,9 @@ async def _setup_sensors(
 ):
     """Set up sensors for a coordinator."""
     num_max_values = coordinator.num_max_values
+    cycle_name = CYCLE_NAME_MAPPING.get(coordinator.cycle_type, "Hourly")
     sensors = [
-        MaxPowerSensor(coordinator, idx, f"Max Hourly Average Power {idx + 1}")
+        MaxPowerSensor(coordinator, idx, f"Max {cycle_name} Average Power {idx + 1}")
         for idx in range(num_max_values)
     ]
     # Add average max power sensor
@@ -263,7 +272,8 @@ class AverageMaxPowerSensor(SensorEntity):
         super().__init__()
         self._coordinator = coordinator
         self._entry = entry
-        self._attr_name = "Average Max Hourly Average Power"
+        cycle_name = CYCLE_NAME_MAPPING.get(coordinator.cycle_type, "Hourly")
+        self._attr_name = f"Average Max {cycle_name} Average Power"
         self._attr_unique_id = f"{coordinator.unique_id}_average_max"
         self._attr_device_class = SensorDeviceClass.POWER
         self._attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
@@ -292,7 +302,8 @@ class AverageMaxCostSensor(SensorEntity):
         super().__init__()
         self._coordinator = coordinator
         self._entry = entry
-        self._attr_name = "Average Max Hourly Average Power Cost"
+        cycle_name = CYCLE_NAME_MAPPING.get(coordinator.cycle_type, "Hourly")
+        self._attr_name = f"Average Max {cycle_name} Average Power Cost"
         self._attr_unique_id = f"{coordinator.unique_id}_average_max_cost"
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_state_class = (
@@ -422,8 +433,13 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
         self._coordinator = coordinator
         self._entry = entry
         self._source_sensor = entry.data[CONF_SOURCE_SENSOR]
-        self._attr_name = f"Hourly Average Power {self._source_sensor.split('.')[-1]}"
-        self._attr_unique_id = f"{coordinator.unique_id}_hourly_average_power"
+        cycle_name = CYCLE_NAME_MAPPING.get(coordinator.cycle_type, "Hourly")
+        self._attr_name = (
+            f"{cycle_name} Average Power {self._source_sensor.split('.')[-1]}"
+        )
+        self._attr_unique_id = (
+            f"{coordinator.unique_id}_{coordinator.cycle_type}_average_power"
+        )
         self._attr_device_class = SensorDeviceClass.POWER
         self._attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -433,8 +449,18 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
         self._accumulated_energy = 0.0
         self._last_power = 0.0
         self._last_time = None
-        self._hour_start = None
+        self._cycle_start = None
         self._store = None
+
+    def _get_current_cycle_start(self, now):
+        """Get the start time of the current cycle."""
+        if self._coordinator.cycle_type == CYCLE_QUARTERLY:
+            # Quarterly: cycles start at :00, :15, :30, :45
+            minute = (now.minute // 15) * 15
+            return now.replace(minute=minute, second=0, microsecond=0)
+        else:
+            # Hourly: cycles start at :00
+            return now.replace(minute=0, second=0, microsecond=0)
 
     async def _save_state(self):
         """Save the current state to storage."""
@@ -443,8 +469,8 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
                 "accumulated_energy": self._accumulated_energy,
                 "last_power": self._last_power,
                 "last_time": self._last_time.isoformat() if self._last_time else None,
-                "hour_start": self._hour_start.isoformat()
-                if self._hour_start
+                "cycle_start": self._cycle_start.isoformat()
+                if self._cycle_start
                 else None,
             }
             await self._store.async_save(data)
@@ -455,57 +481,65 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
         self._store = Store(
             self.hass,
             1,
-            f"power_max_tracker_{self._coordinator.unique_id}_hourly_sensor",
+            f"power_max_tracker_{self._coordinator.unique_id}_{self._coordinator.cycle_type}_sensor",
         )
         # Load persisted state
         stored_data = await self._store.async_load()
         now = dt_util.utcnow()
-        current_hour_start = now.replace(minute=0, second=0, microsecond=0)
+        current_cycle_start = self._get_current_cycle_start(now)
         if stored_data:
             self._accumulated_energy = stored_data.get("accumulated_energy", 0.0)
             self._last_power = stored_data.get("last_power", 0.0)
             last_time_str = stored_data.get("last_time")
             if last_time_str:
                 self._last_time = dt_util.parse_datetime(last_time_str)
-            hour_start_str = stored_data.get("hour_start")
-            if hour_start_str:
-                self._hour_start = dt_util.parse_datetime(hour_start_str)
-            # Check if stored hour_start is in the current hour
-            if self._hour_start and (
-                self._hour_start.date() != current_hour_start.date()
-                or self._hour_start.hour != current_hour_start.hour
-            ):
-                # Different hour, reset accumulated energy
+            cycle_start_str = stored_data.get("cycle_start")
+            if cycle_start_str:
+                self._cycle_start = dt_util.parse_datetime(cycle_start_str)
+            # Check if stored cycle_start is in the current cycle
+            if self._cycle_start and self._cycle_start != current_cycle_start:
+                # Different cycle, reset accumulated energy
                 self._accumulated_energy = 0.0
                 self._last_power = 0.0
                 self._last_time = now
-                self._hour_start = current_hour_start
+                self._cycle_start = current_cycle_start
         else:
-            # No stored data, initialize for current hour
+            # No stored data, initialize for current cycle
             self._accumulated_energy = 0.0
             self._last_power = 0.0
             self._last_time = now
-            self._hour_start = current_hour_start
+            self._cycle_start = current_cycle_start
 
-        async def _async_hour_start(now):
-            """Reset at the start of each hour."""
+        async def _async_cycle_start(now):
+            """Reset at the start of each cycle."""
             self._accumulated_energy = 0.0
             self._last_power = 0.0
             self._last_time = now
-            self._hour_start = now
+            self._cycle_start = self._get_current_cycle_start(now)
             await self._save_state()
             self.async_write_ha_state()
 
-        # Track hour changes
-        self.async_on_remove(
-            async_track_time_change(
-                self.hass,
-                _async_hour_start,
-                hour=None,
-                minute=0,
-                second=0,
+        # Track cycle changes
+        if self._coordinator.cycle_type == CYCLE_QUARTERLY:
+            self.async_on_remove(
+                async_track_time_change(
+                    self.hass,
+                    _async_cycle_start,
+                    hour=None,
+                    minute=[0, 15, 30, 45],
+                    second=0,
+                )
             )
-        )
+        else:
+            self.async_on_remove(
+                async_track_time_change(
+                    self.hass,
+                    _async_cycle_start,
+                    hour=None,
+                    minute=0,
+                    second=0,
+                )
+            )
 
         async def _async_state_changed(event):
             """Handle state changes of scaled source sensor."""
@@ -568,10 +602,17 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
     @property
     def native_value(self):
         """Return the state."""
-        if self._hour_start is None:
+        if self._cycle_start is None:
             return 0.0
         now = dt_util.utcnow()
-        elapsed_hours = (now - self._hour_start).total_seconds() / SECONDS_PER_HOUR
-        if elapsed_hours > 0:
-            return round(self._accumulated_energy / elapsed_hours, 3)
+        elapsed_seconds = (now - self._cycle_start).total_seconds()
+        if elapsed_seconds > 0:
+            # Average power in kW = accumulated energy in kWh / elapsed time in hours
+            # Since elapsed time in hours = elapsed_seconds / SECONDS_PER_HOUR
+            # And 1 kWh = 1 kW * 1 hour, so kWh / hours = kW
+            # Formula: accumulated_energy_kWh * SECONDS_PER_HOUR / elapsed_seconds
+            return round(
+                self._accumulated_energy * SECONDS_PER_HOUR / elapsed_seconds,
+                3,
+            )
         return 0.0
