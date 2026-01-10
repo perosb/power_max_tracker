@@ -9,11 +9,20 @@ CONF_START_TIME = "start_time"
 CONF_STOP_TIME = "stop_time"
 CONF_TIME_SCALING_FACTOR = "time_scaling_factor"
 CONF_SINGLE_PEAK_PER_DAY = "single_peak_per_day"
+CONF_CYCLE_TYPE = "cycle_type"
 
 # Constants for calculations
 SECONDS_PER_HOUR = 3600
+SECONDS_PER_QUARTER_HOUR = 900
 WATTS_TO_KILOWATTS = 1000.0
 KILOWATT_HOURS_PER_WATT_HOUR = 1 / WATTS_TO_KILOWATTS
+
+# Cycle types
+CYCLE_HOURLY = "hourly"
+CYCLE_QUARTERLY = "quarterly"
+
+# Update timing constants
+QUARTERLY_UPDATE_MINUTES = [1, 16, 31, 46]
 
 # Storage keys
 STORAGE_VERSION = 1

@@ -32,6 +32,7 @@ Tracks maximum hourly average power values from a power sensor, with optional ga
    - **Monthly Reset**: Clear max values on 1st of each month
    - **Single Peak per Day**: Track only one peak per day instead of multiple hourly peaks
    - **Price per kW**: Electricity cost (creates cost sensor when > 0)
+   - **Cycle Type**: Choose between hourly or quarterly (15-minute) tracking intervals
 
 4. Choose gating method:
    - **Binary Sensor**: Only track when sensor is "on"
@@ -46,6 +47,7 @@ sensor:
     monthly_reset: true
     single_peak_per_day: false
     price_per_kw: 0.25
+    cycle_type: hourly  # or "quarterly" for 15-minute intervals
     # Choose one gating method:
     binary_sensor: binary_sensor.power_active  # OR
     start_time: "14:00"
@@ -56,12 +58,12 @@ sensor:
 ## Usage
 
 ### Entities Created
-- `sensor.max_hourly_average_power_1_<id>`: Highest hourly average (kW)
+- `sensor.max_hourly_average_power_1_<id>`: Highest cycle average (kW)
 - `sensor.max_hourly_average_power_2_<id>`: Second highest (kW)
 - `sensor.average_max_hourly_average_power_<id>`: Average of all max values
 - `sensor.average_max_hourly_average_power_cost_<id>`: Cost of average max (when price configured)
 - `sensor.power_max_source_<id>`: Real-time source tracking (W, hidden by default)
-- `sensor.hourly_average_power_<id>`: Current hour average (kW)
+- `sensor.<cycle>_average_power_<id>`: Current cycle average (kW, e.g., "hourly_average_power" or "quarterly_average_power")
 
 ### Services
 - `power_max_tracker.update_max_values`: Recalculate from midnight
@@ -101,7 +103,8 @@ sensor:
 - **Units**: Automatically detects W/kW from source sensor's unit_of_measurement
 - **Gating**: Binary sensor and time scaling are mutually exclusive
 - **Time Windows**: Support crossing midnight (e.g., 22:00 to 06:00)
-- **Single Peak per Day**: When enabled, tracks only the highest peak per day instead of multiple hourly peaks, changing how max values are stored and averaged
+- **Cycle Types**: Choose between hourly (60-minute) or quarterly (15-minute) tracking intervals
+- **Single Peak per Day**: When enabled, tracks only the highest peak per day instead of multiple cycle peaks, changing how max values are stored and averaged
 - **Negative Values**: Ignored in all calculations
 - **Storage**: Max values persist across restarts
 

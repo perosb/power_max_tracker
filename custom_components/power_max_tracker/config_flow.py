@@ -14,6 +14,9 @@ from .const import (
     CONF_STOP_TIME,
     CONF_TIME_SCALING_FACTOR,
     CONF_SINGLE_PEAK_PER_DAY,
+    CONF_CYCLE_TYPE,
+    CYCLE_HOURLY,
+    CYCLE_QUARTERLY,
 )
 
 
@@ -169,6 +172,12 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             ),
             CONF_SINGLE_PEAK_PER_DAY: selector.BooleanSelector(),
+            CONF_CYCLE_TYPE: selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[CYCLE_HOURLY, CYCLE_QUARTERLY],
+                    translation_key="cycle_type",
+                )
+            ),
         }
 
     def _get_reconfigure_schema(self, entry):
@@ -196,6 +205,10 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_SINGLE_PEAK_PER_DAY,
                 default=entry.data.get(CONF_SINGLE_PEAK_PER_DAY, False),
             ): fields[CONF_SINGLE_PEAK_PER_DAY],
+            vol.Optional(
+                CONF_CYCLE_TYPE,
+                default=entry.data.get(CONF_CYCLE_TYPE, CYCLE_HOURLY),
+            ): fields[CONF_CYCLE_TYPE],
         }
 
         return vol.Schema(schema_dict)
@@ -297,6 +310,9 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_SINGLE_PEAK_PER_DAY, default=False): fields[
                     CONF_SINGLE_PEAK_PER_DAY
                 ],
+                vol.Optional(CONF_CYCLE_TYPE, default=CYCLE_HOURLY): fields[
+                    CONF_CYCLE_TYPE
+                ],
             }
         )
 
@@ -313,6 +329,7 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_START_TIME: data.get(CONF_START_TIME, "00:00"),
             CONF_STOP_TIME: data.get(CONF_STOP_TIME, "23:59"),
             CONF_TIME_SCALING_FACTOR: data.get(CONF_TIME_SCALING_FACTOR),
+            CONF_CYCLE_TYPE: data.get(CONF_CYCLE_TYPE, CYCLE_HOURLY),
         }
 
     async def _create_entry(self, data):

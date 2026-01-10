@@ -1,0 +1,98 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Power Max Tracker Konfiguration",
+        "description": "Konfigurieren Sie die Power Max Tracker Integration zur Verfolgung von maximalen Leistungswerten.",
+        "data": {
+          "source_sensor": "Quellsensor",
+          "num_max_values": "Anzahl der Max-Werte",
+          "monthly_reset": "Monatliche Zurücksetzung",
+          "single_peak_per_day": "Einzelner Spitzenwert pro Tag",
+          "price_per_kw": "Stromgebühr pro kW",
+          "cycle_type": "Zeitintervall"
+        },
+        "data_description": {
+          "source_sensor": "Wählen Sie den zu verfolgenden Leistungssensor (muss Watt bereitstellen).",
+          "num_max_values": "Anzahl der zu verfolgenden maximalen Leistungswerte (1-10).",
+          "monthly_reset": "Setzen Sie die maximalen Werte am 1. jedes Monats auf 0 zurück.",
+          "single_peak_per_day": "Verfolgen Sie nur einen Spitzenwert pro Tag anstelle mehrerer stündlicher Spitzenwerte.",
+          "price_per_kw": "Gebühr pro Kilowatt für Stromkostenberechnungen.",
+          "cycle_type": "Wählen Sie das Intervall für die Verfolgung von maximalen Leistungswerten."
+        },
+        "submit": "Weiter zu Zeiteinstellungen"
+      },
+      "reconfigure": {
+        "title": "Power Max Tracker neu konfigurieren",
+        "description": "Aktualisieren Sie die Grundkonfiguration für Ihre Power Max Tracker Integration.",
+        "data": {
+          "source_sensor": "Quellsensor",
+          "monthly_reset": "Monatliche Zurücksetzung",
+          "num_max_values": "Anzahl der Max-Werte",
+          "single_peak_per_day": "Einzelner Spitzenwert pro Tag",
+          "price_per_kw": "Stromgebühr pro kW",
+          "power_scaling_factor": "Leistungsskalierungsfaktor",
+          "cycle_type": "Zeitintervall"
+        },
+        "data_description": {
+          "source_sensor": "Wählen Sie den zu verfolgenden Leistungssensor (muss Watt bereitstellen).",
+          "monthly_reset": "Setzen Sie die maximalen Werte am 1. jedes Monats auf 0 zurück.",
+          "num_max_values": "Anzahl der zu verfolgenden maximalen Leistungswerte (1-10).",
+          "single_peak_per_day": "Verfolgen Sie nur einen Spitzenwert pro Tag anstelle mehrerer stündlicher Spitzenwerte.",
+          "price_per_kw": "Gebühr pro Kilowatt für Stromkostenberechnungen.",
+          "power_scaling_factor": "Skalierungsfaktor für Leistungswerte (automatisch erkannt, falls nicht gesetzt).",
+          "cycle_type": "Wählen Sie das Intervall für die Verfolgung von maximalen Leistungswerten."
+        },
+        "submit": "Weiter zu Zeiteinstellungen"
+      },
+      "reconfigure_time": {
+        "title": "Zeit- & Erweiterte Einstellungen",
+        "description": "Konfigurieren Sie zeitbasierte Verfolgung und erweiterte Optionen.",
+        "data": {
+          "start_time": "Startzeit",
+          "stop_time": "Stoppzeit",
+          "time_scaling_factor": "Zeitskalierungsfaktor",
+          "binary_sensor": "Steuerungssensor (Optional)"
+        },
+        "data_description": {
+          "start_time": "Startzeit für die Anwendung des Skalierungsfaktors.",
+          "stop_time": "Stoppzeit für die Anwendung des Skalierungsfaktors.",
+          "time_scaling_factor": "Multiplikator für Leistungswerte in diesem Zeitraum.",
+          "binary_sensor": "Verfolgen Sie Leistung nur, wenn dieser binäre Sensor 'an' ist (leer lassen für immer aktive Verfolgung)."
+        }
+      },
+      "time_config": {
+        "title": "Zeit- & Erweiterte Einstellungen",
+        "description": "Konfigurieren Sie zeitbasierte Verfolgung und erweiterte Optionen.",
+        "data": {
+          "start_time": "Startzeit",
+          "stop_time": "Stoppzeit",
+          "time_scaling_factor": "Zeitskalierungsfaktor",
+          "binary_sensor": "Steuerungssensor (Optional)"
+        },
+        "data_description": {
+          "start_time": "Startzeit für die Anwendung des Skalierungsfaktors.",
+          "stop_time": "Stoppzeit für die Anwendung des Skalierungsfaktors.",
+          "time_scaling_factor": "Multiplikator für Leistungswerte in diesem Zeitraum.",
+          "binary_sensor": "Verfolgen Sie Leistung nur, wenn dieser binäre Sensor 'an' ist (leer lassen für immer aktive Verfolgung)."
+        }
+      }
+    },
+    "error": {
+      "invalid_max_values": "Die Anzahl der Max-Werte muss eine ganze Zahl zwischen 1 und 10 sein.",
+      "binary_sensor_exclusive": "Zeitbasierte Einstellungen können nicht verwendet werden, wenn ein Steuerungssensor ausgewählt ist. Wählen Sie entweder zeitbasierte Verfolgung ODER sensorbasierte Steuerung, nicht beides."
+    },
+    "abort": {
+      "already_configured": "Gerät ist bereits konfiguriert",
+      "reconfigure_successful": "Neukonfiguration war erfolgreich."
+    },
+    "selector": {
+      "cycle_type": {
+        "options": {
+          "hourly": "Stündlich",
+          "quarterly": "Viertelstündlich (15 Minuten)"
+        }
+      }
+    }
+  }
+}

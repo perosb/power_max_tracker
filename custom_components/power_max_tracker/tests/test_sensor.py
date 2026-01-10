@@ -17,6 +17,7 @@ from custom_components.power_max_tracker.sensor import (
     GatedSensorEntity,
     async_setup_entry,
     async_setup_platform,
+    CYCLE_QUARTERLY,
 )
 from custom_components.power_max_tracker.const import (
     CONF_SOURCE_SENSOR,
@@ -705,12 +706,20 @@ class TestAverageMaxPowerSensor:
     """Test cases for AverageMaxPowerSensor."""
 
     @pytest.mark.asyncio
-    async def test_init(self, coordinator, mock_config_entry):
-        """Test average max sensor initialization."""
-        sensor = AverageMaxPowerSensor(coordinator, mock_config_entry)
+    async def test_init_quarterly_cycle(
+        self, coordinator_quarterly, mock_config_entry_quarterly
+    ):
+        """Test average max sensor initialization with quarterly cycle."""
+        sensor = AverageMaxPowerSensor(
+            coordinator_quarterly, mock_config_entry_quarterly
+        )
 
-        assert sensor._coordinator == coordinator
-        assert sensor._entry == mock_config_entry
+        assert sensor._coordinator == coordinator_quarterly
+        assert sensor._entry == mock_config_entry_quarterly
+        # Verify the coordinator is correctly set up with quarterly cycle type
+        assert coordinator_quarterly.cycle_type == CYCLE_QUARTERLY
+        # Test that name uses quarterly cycle type
+        assert sensor._attr_name == "Average Max Quarterly Average Power"
 
     def test_native_value(self, coordinator, mock_config_entry):
         """Test native value calculation."""
@@ -757,6 +766,12 @@ class TestAverageMaxCostSensor:
             sensor._attr_state_class is None
         )  # Monetary sensors don't use MEASUREMENT
         assert sensor._attr_icon == "mdi:currency-usd"
+        # Test that name uses cycle type
+        from custom_components.power_max_tracker.sensor import CYCLE_NAME_MAPPING
+
+        expected_cycle_name = CYCLE_NAME_MAPPING.get(coordinator.cycle_type, "Hourly")
+        expected_name = f"Average Max {expected_cycle_name} Average Power Cost"
+        assert sensor._attr_name == expected_name
 
     def test_native_value_with_price_and_max_values(
         self, coordinator, mock_config_entry

@@ -18,7 +18,12 @@ from .const import (
     CONF_STOP_TIME,
     CONF_TIME_SCALING_FACTOR,
     CONF_SINGLE_PEAK_PER_DAY,
+    CONF_CYCLE_TYPE,
     SECONDS_PER_HOUR,
+    SECONDS_PER_QUARTER_HOUR,
+    CYCLE_HOURLY,
+    CYCLE_QUARTERLY,
+    QUARTERLY_UPDATE_MINUTES,
     WATTS_TO_KILOWATTS,
     STORAGE_VERSION,
     MAX_VALUES_STORAGE_KEY,
@@ -61,6 +66,7 @@ class PowerMaxCoordinator:
                 entry.data.get(CONF_TIME_SCALING_FACTOR, 1.0) or 1.0
             )
             self.single_peak_per_day = entry.data.get(CONF_SINGLE_PEAK_PER_DAY, False)
+            self.cycle_type = entry.data.get(CONF_CYCLE_TYPE, CYCLE_HOURLY)
             self.unique_id = entry.entry_id
         else:
             # YAML mode
@@ -78,6 +84,7 @@ class PowerMaxCoordinator:
                 yaml_config.get(CONF_TIME_SCALING_FACTOR, 1.0) or 1.0
             )
             self.single_peak_per_day = yaml_config.get(CONF_SINGLE_PEAK_PER_DAY, False)
+            self.cycle_type = yaml_config.get(CONF_CYCLE_TYPE, CYCLE_HOURLY)
             self.unique_id = yaml_unique_id
 
         self.source_sensor_entity_id = None  # Set dynamically after entity registration
@@ -91,6 +98,61 @@ class PowerMaxCoordinator:
         self.entities = []  # Store sensor entities
         self._listeners = []
 
+    @property
+    def period(self):
+        """Return the statistics period based on cycle type."""
+        return "15min" if self.cycle_type == CYCLE_QUARTERLY else "hour"
+
+    @property
+    def seconds_per_cycle(self):
+        """Return seconds per cycle."""
+        return (
+            SECONDS_PER_QUARTER_HOUR
+            if self.cycle_type == CYCLE_QUARTERLY
+            else SECONDS_PER_HOUR
+        )
+
+    @property
+    def update_hour(self):
+        """Return hour parameter for time tracking."""
+        return None
+
+    @property
+    def update_minute(self):
+        """Return minute parameter for time tracking."""
+        if self.cycle_type == CYCLE_QUARTERLY:
+            return QUARTERLY_UPDATE_MINUTES
+        else:
+            return 1
+
+    @property
+    def update_second(self):
+        """Return second parameter for time tracking."""
+        return 0
+
+    def _get_current_cycle_start(self, now: datetime) -> datetime:
+        """Get the start time of the previous completed cycle being measured.
+
+        Args:
+            now: Current datetime
+
+        Returns:
+            Start time of the previous completed cycle period being measured
+        """
+        # Floor the current time to the cycle boundary
+        if self.cycle_type == CYCLE_QUARTERLY:
+            # Round down to nearest 15 minutes
+            minutes = now.minute
+            floored_minute = (minutes // 15) * 15
+            floored = now.replace(minute=floored_minute, second=0, microsecond=0)
+        else:  # CYCLE_HOURLY
+            # Round down to nearest hour
+            floored = now.replace(minute=0, second=0, microsecond=0)
+
+        # The cycle start is one cycle duration before the floored time (previous completed cycle)
+        cycle_start = floored - timedelta(seconds=self.seconds_per_cycle)
+        return cycle_start
+
     def add_entity(self, entity):
         """Add a sensor entity to the coordinator."""
         if (
@@ -101,7 +163,7 @@ class PowerMaxCoordinator:
             and callable(getattr(entity, "async_write_ha_state", None))
             and (
                 entity._attr_unique_id.endswith("_source")
-                or entity._attr_unique_id.endswith("_hourly_average_power")
+                or entity._attr_unique_id.endswith(f"_{self.cycle_type}_average_power")
                 or entity._attr_unique_id.endswith("_average_max")
                 or entity._attr_unique_id.endswith("_average_max_cost")
                 or any(
@@ -200,14 +262,14 @@ class PowerMaxCoordinator:
         if self.source_sensor_entity_id and self.power_scaling_factor == 1.0:
             self._auto_detect_scaling_factor()
 
-        # Hourly update listener (for max values)
+        # Hourly/Quarterly update listener (for max values)
         self._listeners.append(
             async_track_time_change(
                 self.hass,
-                self._async_update_hourly,
-                hour=None,
-                minute=1,
-                second=0,
+                self._async_update_period,
+                hour=self.update_hour,
+                minute=self.update_minute,
+                second=self.update_second,
             )
         )
 
@@ -242,7 +304,7 @@ class PowerMaxCoordinator:
             and callable(getattr(entity, "async_write_ha_state", None))
             and (
                 entity._attr_unique_id.endswith("_source")
-                or entity._attr_unique_id.endswith("_hourly_average_power")
+                or entity._attr_unique_id.endswith(f"_{self.cycle_type}_average_power")
                 or entity._attr_unique_id.endswith("_average_max")
                 or entity._attr_unique_id.endswith("_average_max_cost")
                 or any(
@@ -418,20 +480,20 @@ class PowerMaxCoordinator:
 
             return False
 
-    async def _query_hourly_statistics(
+    async def _query_period_statistics(
         self, start_time: datetime, end_time: datetime
     ) -> float | None:
-        """Query hourly average power statistics for the source sensor.
+        """Query average power statistics for the source sensor.
 
         Args:
             start_time: Start time for the statistics query
             end_time: End time for the statistics query
 
         Returns:
-            Hourly average power in watts, or None if no data available
+            Average power in watts, or None if no data available
         """
         _LOGGER.debug(
-            f"Querying hourly stats for {self.source_sensor_entity_id} from {start_time} to {end_time}"
+            f"Querying {self.period} stats for {self.source_sensor_entity_id} from {start_time} to {end_time}"
         )
         stats = await get_instance(self.hass).async_add_executor_job(
             statistics_during_period,
@@ -439,7 +501,7 @@ class PowerMaxCoordinator:
             start_time,
             end_time,
             [self.source_sensor_entity_id],
-            "hour",
+            self.period,
             None,
             {"mean"},
         )
@@ -460,55 +522,58 @@ class PowerMaxCoordinator:
     async def _update_max_values_from_range(
         self, start_time: datetime, end_time: datetime, reset_max: bool = False
     ):
-        """Update max values from a range of hours."""
+        """Update max values from a range of cycles."""
         if reset_max:
             self.max_values = [0.0] * self.num_max_values
             self.max_values_timestamps = [None] * self.num_max_values
 
-        hours = int((end_time - start_time).total_seconds() // SECONDS_PER_HOUR)
-        if hours == 0:
+        cycles = int((end_time - start_time).total_seconds() // self.seconds_per_cycle)
+        if cycles == 0:
             return
 
-        for hour in range(hours):
-            hour_start = start_time + timedelta(hours=hour)
-            hour_end = hour_start + timedelta(hours=1)
+        for cycle in range(cycles):
+            cycle_start = start_time + timedelta(seconds=cycle * self.seconds_per_cycle)
+            cycle_end = cycle_start + timedelta(seconds=self.seconds_per_cycle)
 
-            hourly_avg_watts = await self._query_hourly_statistics(hour_start, hour_end)
+            cycle_avg_watts = await self._query_period_statistics(
+                cycle_start, cycle_end
+            )
 
-            if hourly_avg_watts is not None and hourly_avg_watts >= 0:
-                hourly_avg_kw = self._watts_to_kilowatts(hourly_avg_watts)
-                self._update_max_values_with_timestamp(hourly_avg_kw, hour_end)
+            if cycle_avg_watts is not None and cycle_avg_watts >= 0:
+                cycle_avg_kw = self._watts_to_kilowatts(cycle_avg_watts)
+                self._update_max_values_with_timestamp(cycle_avg_kw, cycle_end)
 
         await self._save_max_values_data()
         await self._update_entities("range update")
 
-    async def _async_update_hourly(self, now):
-        """Calculate hourly average power in kW and update max values if binary sensor allows."""
+    async def _async_update_period(self, now):
+        """Calculate cycle average power in kW and update max values if binary sensor allows."""
         if not self.source_sensor_entity_id:
             _LOGGER.debug(
-                f"Cannot update hourly stats: source_sensor_entity_id not set for {self.source_sensor}"
+                f"Cannot update period stats: source_sensor_entity_id not set for {self.source_sensor}"
             )
             return
 
-        end_time = now.replace(minute=0, second=0, microsecond=0)
-        start_time = end_time - timedelta(hours=1)
+        # Calculate the cycle period being measured
+        start_time = self._get_current_cycle_start(now)
+        end_time = start_time + timedelta(seconds=self.seconds_per_cycle)
 
-        hourly_avg_watts = await self._query_hourly_statistics(start_time, end_time)
+        period_avg_watts = await self._query_period_statistics(start_time, end_time)
 
-        if hourly_avg_watts is not None:
+        if period_avg_watts is not None:
             # Only use non-negative values
-            if hourly_avg_watts >= 0:
-                hourly_avg_kw = self._watts_to_kilowatts(hourly_avg_watts)
+            if period_avg_watts >= 0:
+                period_avg_kw = self._watts_to_kilowatts(period_avg_watts)
                 _LOGGER.debug(
-                    f"Hourly average power for {start_time} to {end_time}: {hourly_avg_kw} kW (from {hourly_avg_watts} W)"
+                    f"Period average power for {start_time} to {end_time}: {period_avg_kw} kW (from {period_avg_watts} W)"
                 )
-                if self._update_max_values_with_timestamp(hourly_avg_kw, now):
+                if self._update_max_values_with_timestamp(period_avg_kw, now):
                     await self._save_max_values_data()
                     # Force sensor update
-                    await self._update_entities("hourly update")
+                    await self._update_entities("period update")
             else:
                 _LOGGER.debug(
-                    f"Skipping negative hourly average power: {hourly_avg_watts} W"
+                    f"Skipping negative period average power: {period_avg_watts} W"
                 )
 
     async def async_update_max_values_from_midnight(self):

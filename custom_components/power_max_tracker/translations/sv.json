@@ -9,14 +9,16 @@
           "num_max_values": "Antal Maxvärden",
           "monthly_reset": "Månadsåterställning",
           "single_peak_per_day": "En topp per dag",
-          "price_per_kw": "Effektavgift per kW"
+          "price_per_kw": "Effektavgift per kW",
+          "cycle_type": "Tidsintervall"
         },
         "data_description": {
           "source_sensor": "Välj effektgivaren att spåra (måste ge watt).",
           "num_max_values": "Antal maximala effektvärden att spåra (1-10).",
           "monthly_reset": "Återställ maximala värden till 0 den 1:a varje månad.",
           "single_peak_per_day": "Spåra endast ett toppvärde per dag istället för flera timtoppar.",
-          "price_per_kw": "Effektavgift per kilowatt för elkostnadskalkyler."
+          "price_per_kw": "Effektavgift per kilowatt för elkostnadskalkyler.",
+          "cycle_type": "Välj intervall för spårning av maximala effektvärden."
         },
         "submit": "Fortsätt till tidsinställningar"
       },
@@ -29,7 +31,8 @@
           "num_max_values": "Antal Maxvärden",
           "single_peak_per_day": "En topp per dag",
           "price_per_kw": "Effektavgift per kW",
-          "power_scaling_factor": "Effektskalningsfaktor"
+          "power_scaling_factor": "Effektskalningsfaktor",
+          "cycle_type": "Tidsintervall"
         },
         "data_description": {
           "source_sensor": "Välj effektgivaren att spåra (måste ge watt).",
@@ -37,7 +40,8 @@
           "num_max_values": "Antal maximala effektvärden att spåra (1-10).",
           "single_peak_per_day": "Spåra endast ett toppvärde per dag istället för flera timtoppar.",
           "price_per_kw": "Effektavgift per kilowatt för elkostnadskalkyler.",
-          "power_scaling_factor": "Skalningsfaktor att tillämpa på effektvärden (automatiskt detekterad om inte inställd)."
+          "power_scaling_factor": "Skalningsfaktor att tillämpa på effektvärden (automatiskt detekterad om inte inställd).",
+          "cycle_type": "Välj intervall för spårning av maximala effektvärden."
         },
         "submit": "Fortsätt till tidsinställningar"
       },
@@ -81,6 +85,14 @@
     "abort": {
       "already_configured": "Enheten är redan konfigurerad",
       "reconfigure_successful": "Omkonfigurationen lyckades."
+    },
+    "selector": {
+      "cycle_type": {
+        "options": {
+          "hourly": "Timvis",
+          "quarterly": "Kvartvis (15 minuter)"
+        }
+      }
     }
   }
 }
