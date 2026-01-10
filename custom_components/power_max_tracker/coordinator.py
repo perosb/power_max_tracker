@@ -137,10 +137,10 @@ class PowerMaxCoordinator:
         """Get the start time of the previous completed cycle being measured.
 
         Args:
-            now: Current datetime (local time)
+            now: Current datetime (naive, representing local time)
 
         Returns:
-            Start time of the previous completed cycle period being measured
+            Start time of the previous completed cycle period being measured (naive, representing local time)
         """
         # Floor the current time to the cycle boundary
         if self.cycle_type == CYCLE_QUARTERLY:
@@ -610,7 +610,9 @@ class PowerMaxCoordinator:
 
             if cycle_avg_watts is not None and cycle_avg_watts >= 0:
                 cycle_avg_kw = self._watts_to_kilowatts(cycle_avg_watts)
-                self._update_max_values_with_timestamp(cycle_avg_kw, cycle_end)
+                # Convert cycle_end to naive UTC for consistent timestamp storage
+                cycle_end_utc = dt_util.as_utc(cycle_end).replace(tzinfo=None)
+                self._update_max_values_with_timestamp(cycle_avg_kw, cycle_end_utc)
 
         await self._save_max_values_data()
         await self._update_entities("range update")
@@ -619,7 +621,7 @@ class PowerMaxCoordinator:
         """Calculate cycle average power in kW and update max values if binary sensor allows."""
         # async_track_time_change passes timezone-aware local time
         original_now = now
-        # Keep as timezone-aware for proper calculations
+        # Ensure it's timezone-aware
         if hasattr(now, "tzinfo") and now.tzinfo is None:
             # If naive datetime, assume it's local time and make it timezone-aware
             now = dt_util.as_local(now)
@@ -634,13 +636,13 @@ class PowerMaxCoordinator:
             )
             return
 
-        # Calculate the cycle period being measured (in local time)
-        start_time = self._get_current_cycle_start(now.replace(tzinfo=None))
-        end_time = start_time + timedelta(seconds=self.seconds_per_cycle)
+        # Calculate the cycle period being measured (in local time, timezone-aware)
+        start_time_local = self._get_current_cycle_start(now.replace(tzinfo=None))
+        end_time_local = start_time_local + timedelta(seconds=self.seconds_per_cycle)
 
         # Convert to UTC for statistics query (statistics are stored in UTC)
-        start_time_utc = dt_util.as_utc(start_time)
-        end_time_utc = dt_util.as_utc(end_time)
+        start_time_utc = dt_util.as_utc(start_time_local)
+        end_time_utc = dt_util.as_utc(end_time_local)
 
         period_avg_watts = await self._query_period_statistics(
             start_time_utc, end_time_utc
@@ -651,12 +653,16 @@ class PowerMaxCoordinator:
             if period_avg_watts >= 0:
                 period_avg_kw = self._watts_to_kilowatts(period_avg_watts)
                 _LOGGER.debug(
-                    f"Period average power for {start_time} to {end_time}: {period_avg_kw} kW (from {period_avg_watts} W)"
+                    f"Period average power for {start_time_local} to {end_time_local}: {period_avg_kw} kW (from {period_avg_watts} W)"
                 )
 
-                # Use end_time as the timestamp for the max value update
+                # Use end_time_local as the timestamp for the max value update
                 # This ensures the timestamp reflects when the period actually ended
-                if self._update_max_values_with_timestamp(period_avg_kw, end_time):
+                # Convert to naive UTC for consistent storage
+                end_time_naive_utc = end_time_utc.replace(tzinfo=None)
+                if self._update_max_values_with_timestamp(
+                    period_avg_kw, end_time_naive_utc
+                ):
                     await self._save_max_values_data()
                     # Force sensor update
                     await self._update_entities("period update")
