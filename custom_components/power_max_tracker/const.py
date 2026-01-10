@@ -22,7 +22,7 @@ CYCLE_HOURLY = "hourly"
 CYCLE_QUARTERLY = "quarterly"
 
 # Update timing constants
-QUARTERLY_UPDATE_MINUTES = [1, 16, 31, 46]
+QUARTERLY_UPDATE_MINUTES = [15, 30, 45, 0]
 
 # Storage keys
 STORAGE_VERSION = 1

@@ -6,7 +6,7 @@ For basic unit testing of helper methods, use test_coordinator_helpers.py instea
 """
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch, AsyncMock
 
 from homeassistant.helpers.storage import Store
@@ -104,7 +104,7 @@ class TestPowerMaxCoordinator:
 
         # Change to quarterly
         coordinator.cycle_type = "quarterly"
-        assert coordinator.period == "15min"
+        assert coordinator.period == "5minute"
 
     def test_seconds_per_cycle_property(self, coordinator):
         """Test seconds_per_cycle property for different cycle types."""
@@ -555,6 +555,8 @@ class TestPowerMaxCoordinator:
         mock_get_instance.return_value = mock_recorder
         mock_recorder.async_add_executor_job = AsyncMock()
 
+        # For quarterly, it will make 3 calls for 5-minute periods
+        # Each returning the same stats data
         stats_data = {"sensor.test_power": [{"mean": 1500.0}]}  # 1.5 kW
         mock_recorder.async_add_executor_job.return_value = stats_data
 
@@ -568,17 +570,18 @@ class TestPowerMaxCoordinator:
         await coordinator._async_update_period(now)
 
         # Should have updated max values
-        assert coordinator.max_values == [1.5, 0.0]
+        assert coordinator.max_values == [1.5, 0.0]  # Same average
         mock_store.async_save.assert_called_once()
 
-        # Verify the statistics query was called with correct 15-minute period
-        call_args = mock_recorder.async_add_executor_job.call_args
-        start_time, end_time = (
-            call_args[0][2],
-            call_args[0][3],
-        )  # Skip function and hass args
-        expected_start = datetime(2023, 1, 1, 10, 0, 0)
-        expected_end = datetime(2023, 1, 1, 10, 15, 0)
+        # Verify the statistics queries were called for 5-minute periods
+        # Should have made 3 calls for 10:00-10:05, 10:05-10:10, 10:10-10:15
+        assert mock_recorder.async_add_executor_job.call_count == 3
+
+        # Check the first call
+        first_call = mock_recorder.async_add_executor_job.call_args_list[0]
+        start_time, end_time = first_call[0][2], first_call[0][3]
+        expected_start = datetime(2023, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+        expected_end = datetime(2023, 1, 1, 10, 5, 0, tzinfo=timezone.utc)
         assert start_time == expected_start
         assert end_time == expected_end
 
