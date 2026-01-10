@@ -101,7 +101,10 @@ class PowerMaxCoordinator:
     @property
     def period(self):
         """Return the statistics period based on cycle type."""
-        return "15min" if self.cycle_type == CYCLE_QUARTERLY else "hour"
+        if self.cycle_type == CYCLE_QUARTERLY:
+            return "5minute"  # Quarterly uses aggregated 5-minute statistics
+        else:
+            return "hour"
 
     @property
     def seconds_per_cycle(self):
@@ -134,7 +137,7 @@ class PowerMaxCoordinator:
         """Get the start time of the previous completed cycle being measured.
 
         Args:
-            now: Current datetime
+            now: Current datetime (local time)
 
         Returns:
             Start time of the previous completed cycle period being measured
@@ -492,8 +495,15 @@ class PowerMaxCoordinator:
         Returns:
             Average power in watts, or None if no data available
         """
+        if self.cycle_type == CYCLE_QUARTERLY:
+            # For quarterly cycles, aggregate 5-minute statistics since "15min" is not supported
+            return await self._query_quarterly_statistics(start_time, end_time)
+        else:
+            # For hourly cycles, use the hour period directly
+            period = "hour"
+
         _LOGGER.debug(
-            f"Querying {self.period} stats for {self.source_sensor_entity_id} from {start_time} to {end_time}"
+            f"Querying {period} stats for {self.source_sensor_entity_id} from {start_time} to {end_time}"
         )
         stats = await get_instance(self.hass).async_add_executor_job(
             statistics_during_period,
@@ -501,7 +511,7 @@ class PowerMaxCoordinator:
             start_time,
             end_time,
             [self.source_sensor_entity_id],
-            self.period,
+            period,
             None,
             {"mean"},
         )
@@ -516,6 +526,65 @@ class PowerMaxCoordinator:
         else:
             _LOGGER.warning(
                 f"No mean statistics found for {self.source_sensor_entity_id} from {start_time} to {end_time}. Stats: {stats}"
+            )
+            return None
+
+    async def _query_quarterly_statistics(
+        self, start_time: datetime, end_time: datetime
+    ) -> float | None:
+        """Query and aggregate 5-minute statistics for quarterly cycles.
+
+        Args:
+            start_time: Start time of the 15-minute period
+            end_time: End time of the 15-minute period
+
+        Returns:
+            Average power in watts over the 15-minute period, or None if no data
+        """
+        period_duration = timedelta(minutes=5)
+        means = []
+
+        current_time = start_time
+        while current_time < end_time:
+            period_end = min(current_time + period_duration, end_time)
+
+            _LOGGER.debug(
+                f"Querying 5minute stats for {self.source_sensor_entity_id} from {current_time} to {period_end}"
+            )
+            stats = await get_instance(self.hass).async_add_executor_job(
+                statistics_during_period,
+                self.hass,
+                current_time,
+                period_end,
+                [self.source_sensor_entity_id],
+                "5minute",
+                None,
+                {"mean"},
+            )
+
+            if (
+                self.source_sensor_entity_id in stats
+                and stats[self.source_sensor_entity_id]
+                and stats[self.source_sensor_entity_id][0]["mean"] is not None
+            ):
+                means.append(stats[self.source_sensor_entity_id][0]["mean"])
+            else:
+                _LOGGER.debug(
+                    f"No 5minute statistics found for {self.source_sensor_entity_id} from {current_time} to {period_end}"
+                )
+
+            current_time = period_end
+
+        if means:
+            # Return the average of all 5-minute means
+            avg_mean = sum(means) / len(means)
+            _LOGGER.debug(
+                f"Quarterly average calculated from {len(means)} 5-minute periods: {avg_mean} W"
+            )
+            return avg_mean
+        else:
+            _LOGGER.warning(
+                f"No 5-minute statistics found for quarterly period {self.source_sensor_entity_id} from {start_time} to {end_time}"
             )
             return None
 
@@ -548,17 +617,34 @@ class PowerMaxCoordinator:
 
     async def _async_update_period(self, now):
         """Calculate cycle average power in kW and update max values if binary sensor allows."""
+        # async_track_time_change passes timezone-aware local time
+        original_now = now
+        # Keep as timezone-aware for proper calculations
+        if hasattr(now, "tzinfo") and now.tzinfo is None:
+            # If naive datetime, assume it's local time and make it timezone-aware
+            now = dt_util.as_local(now)
+
+        _LOGGER.debug(
+            f"Update period called with original_now={original_now}, tzinfo={getattr(original_now, 'tzinfo', None)}, converted now={now}"
+        )
+
         if not self.source_sensor_entity_id:
             _LOGGER.debug(
                 f"Cannot update period stats: source_sensor_entity_id not set for {self.source_sensor}"
             )
             return
 
-        # Calculate the cycle period being measured
-        start_time = self._get_current_cycle_start(now)
+        # Calculate the cycle period being measured (in local time)
+        start_time = self._get_current_cycle_start(now.replace(tzinfo=None))
         end_time = start_time + timedelta(seconds=self.seconds_per_cycle)
 
-        period_avg_watts = await self._query_period_statistics(start_time, end_time)
+        # Convert to UTC for statistics query (statistics are stored in UTC)
+        start_time_utc = dt_util.as_utc(start_time)
+        end_time_utc = dt_util.as_utc(end_time)
+
+        period_avg_watts = await self._query_period_statistics(
+            start_time_utc, end_time_utc
+        )
 
         if period_avg_watts is not None:
             # Only use non-negative values
@@ -567,7 +653,10 @@ class PowerMaxCoordinator:
                 _LOGGER.debug(
                     f"Period average power for {start_time} to {end_time}: {period_avg_kw} kW (from {period_avg_watts} W)"
                 )
-                if self._update_max_values_with_timestamp(period_avg_kw, now):
+
+                # Use end_time as the timestamp for the max value update
+                # This ensures the timestamp reflects when the period actually ended
+                if self._update_max_values_with_timestamp(period_avg_kw, end_time):
                     await self._save_max_values_data()
                     # Force sensor update
                     await self._update_entities("period update")
