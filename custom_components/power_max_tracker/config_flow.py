@@ -153,7 +153,7 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             ),
             CONF_BINARY_SENSOR: selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="binary_sensor")
+                selector.EntitySelectorConfig(domain=["binary_sensor", "input_boolean"])
             ),
             CONF_PRICE_PER_KW: selector.NumberSelector(
                 selector.NumberSelectorConfig(
