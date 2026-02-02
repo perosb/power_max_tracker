@@ -60,6 +60,8 @@ sensor:
 ### Entities Created
 - `sensor.max_hourly_average_power_1_<id>`: Highest cycle average (kW)
 - `sensor.max_hourly_average_power_2_<id>`: Second highest (kW)
+- `sensor.max_hourly_average_power_last_update_1_<id>`: Timestamp when highest value was recorded
+- `sensor.max_hourly_average_power_last_update_2_<id>`: Timestamp when second highest value was recorded
 - `sensor.average_max_hourly_average_power_<id>`: Average of all max values
 - `sensor.average_max_hourly_average_power_cost_<id>`: Cost of average max (when price configured)
 - `sensor.power_max_source_<id>`: Real-time source tracking (W, hidden by default)
