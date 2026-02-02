@@ -143,7 +143,16 @@ class TestPowerMaxCoordinator:
     def test_average_max_value_with_zeros(self, coordinator):
         """Test average_max_value property with some zero values."""
         coordinator.max_values = [10.0, 0.0, 5.0]
-        assert coordinator.average_max_value == 5.0  # (10 + 0 + 5) / 3 = 5.0
+        assert (
+            coordinator.average_max_value == 7.5
+        )  # (10 + 5) / 2 = 7.5 (zeros excluded)
+
+    def test_average_max_value_with_negatives(self, coordinator):
+        """Test average_max_value property with negative values."""
+        coordinator.max_values = [10.0, -5.0, 5.0]
+        assert (
+            coordinator.average_max_value == 7.5
+        )  # (10 + 5) / 2 = 7.5 (negatives excluded)
 
     def test_previous_month_average_max_value_empty_list(self, coordinator):
         """Test previous_month_average_max_value property with empty list."""
@@ -166,8 +175,15 @@ class TestPowerMaxCoordinator:
         """Test previous_month_average_max_value property with some zero values."""
         coordinator.previous_month_max_values = [15.0, 0.0, 5.0]
         assert (
-            coordinator.previous_month_average_max_value == 6.666666666666667
-        )  # (15 + 0 + 5) / 3
+            coordinator.previous_month_average_max_value == 10.0
+        )  # (15 + 5) / 2 = 10.0 (zeros excluded)
+
+    def test_previous_month_average_max_value_with_negatives(self, coordinator):
+        """Test previous_month_average_max_value property with negative values."""
+        coordinator.previous_month_max_values = [15.0, -5.0, 5.0]
+        assert (
+            coordinator.previous_month_average_max_value == 10.0
+        )  # (15 + 5) / 2 = 10.0 (negatives excluded)
 
     def test_update_max_values_with_timestamp_new_value(self, coordinator):
         """Test updating max values with a new value."""
