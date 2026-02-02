@@ -292,8 +292,8 @@ class MaxPowerTimestampSensor(SensorEntity):
     async def async_added_to_hass(self) -> None:
         """Register callbacks when entity is added."""
         await super().async_added_to_hass()
-        # Timestamp sensors are updated when max values change via time-based updates
-        # No need to register coordinator listeners as timestamps are relatively static
+        # Timestamp sensors are updated through the coordinator's _update_entities mechanism
+        # which is triggered during period updates and monthly resets
 
     @property
     def available(self) -> bool:
