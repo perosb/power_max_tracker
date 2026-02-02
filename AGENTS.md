@@ -21,6 +21,9 @@ This Home Assistant custom component was developed with assistance from AI agent
   - Modifying coordinator to store and initialize price_per_kw from config
   - Updating test cases to reflect new configuration data structure
   - Documenting cost sensor features in README.md
+  - Implementing MaxPowerTimestampSensor to track timestamps for each max power value
+  - Adding coordinator properties for last updated max value and timestamp
+  - Creating comprehensive tests for the new sensor functionality
 
 ## Development Tools
 
@@ -42,5 +45,6 @@ The development followed an iterative approach with AI assistance:
 8. Implementation of AverageMaxCostSensor for monetary cost calculations
 9. Integration of cost sensor with coordinator and configuration flow
 10. Comprehensive testing and documentation updates
+11. Implementation of MaxPowerTimestampSensor for tracking timestamps of each max power value
 
 This file serves to acknowledge the role of AI in the development process and ensure transparency about the tools used.

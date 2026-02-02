@@ -173,6 +173,10 @@ class PowerMaxCoordinator:
                     entity._attr_unique_id.endswith(f"_max_values_{i + 1}")
                     for i in range(self.num_max_values)
                 )
+                or any(
+                    entity._attr_unique_id.endswith(f"_max_timestamps_{i + 1}")
+                    for i in range(self.num_max_values)
+                )
             )
         ):
             self.entities.append(entity)
@@ -312,6 +316,10 @@ class PowerMaxCoordinator:
                 or entity._attr_unique_id.endswith("_average_max_cost")
                 or any(
                     entity._attr_unique_id.endswith(f"_max_values_{i + 1}")
+                    for i in range(self.num_max_values)
+                )
+                or any(
+                    entity._attr_unique_id.endswith(f"_max_timestamps_{i + 1}")
                     for i in range(self.num_max_values)
                 )
             )

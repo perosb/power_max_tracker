@@ -210,6 +210,14 @@ async def _setup_sensors(
         MaxPowerSensor(coordinator, idx, f"Max {cycle_name} Average Power {idx + 1}")
         for idx in range(num_max_values)
     ]
+    # Add a timestamp sensor for each max value
+    timestamp_sensors = [
+        MaxPowerTimestampSensor(
+            coordinator, idx, f"Max {cycle_name} Average Power Last Update {idx + 1}"
+        )
+        for idx in range(num_max_values)
+    ]
+    sensors.extend(timestamp_sensors)
     # Add average max power sensor
     average_max_sensor = AverageMaxPowerSensor(coordinator, entry)
     sensors.append(average_max_sensor)
@@ -223,7 +231,10 @@ async def _setup_sensors(
     # Add HourlyAveragePowerSensor
     hourly_average_power_sensor = HourlyAveragePowerSensor(coordinator, entry)
     sensors.append(hourly_average_power_sensor)
+
+    # Add main sensors with update_before_add
     async_add_entities(sensors, update_before_add=True)
+
     for sensor in sensors:
         coordinator.add_entity(sensor)
 
@@ -250,7 +261,7 @@ class MaxPowerSensor(SensorEntity):
         """Return the state."""
         max_values = self._coordinator.max_values
         current_value = (
-            round(max_values[self._index], 2) if len(max_values) > self._index else 0.0
+            round(max_values[self._index], 2) if len(max_values) > self._index and max_values[self._index] is not None else 0.0
         )
         return current_value
 
@@ -262,6 +273,54 @@ class MaxPowerSensor(SensorEntity):
         if len(timestamps) > self._index and timestamps[self._index] is not None:
             last_update = timestamps[self._index].isoformat()
         return {"last_update": last_update}
+
+
+class MaxPowerTimestampSensor(SensorEntity):
+    """Sensor for the timestamp when a max power value was last updated."""
+
+    def __init__(self, coordinator: PowerMaxCoordinator, index: int, name: str):
+        """Initialize."""
+        super().__init__()
+        self._coordinator = coordinator
+        self._index = index
+        self._attr_name = name
+        self._attr_unique_id = f"{coordinator.unique_id}_max_timestamps_{index + 1}"
+        self._attr_device_class = SensorDeviceClass.TIMESTAMP
+        # Do not set a state_class for timestamp sensors
+        self._attr_should_poll = False
+
+    async def async_added_to_hass(self) -> None:
+        """Register callbacks when entity is added."""
+        await super().async_added_to_hass()
+        # Timestamp sensors are updated through the coordinator's _update_entities mechanism
+        # which is triggered during period updates and monthly resets
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        timestamps = getattr(self._coordinator, "max_values_timestamps", [])
+        return len(timestamps) > self._index and timestamps[self._index] is not None
+
+    @property
+    def native_value(self):
+        """Return the state."""
+        timestamps = getattr(self._coordinator, "max_values_timestamps", [])
+        if len(timestamps) > self._index and timestamps[self._index] is not None:
+            ts = timestamps[self._index]
+            # Ensure timezone-aware
+            if ts.tzinfo is None:
+                return ts.replace(tzinfo=dt_util.UTC)
+            return ts
+        return None
+
+    @property
+    def extra_state_attributes(self):
+        """Return extra attributes."""
+        max_values = getattr(self._coordinator, "max_values", [])
+        current_value = (
+            round(max_values[self._index], 2) if len(max_values) > self._index and max_values[self._index] is not None else 0.0
+        )
+        return {"power_value": current_value}
 
 
 class AverageMaxPowerSensor(SensorEntity):

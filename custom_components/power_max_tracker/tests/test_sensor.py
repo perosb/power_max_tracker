@@ -14,6 +14,7 @@ from custom_components.power_max_tracker.sensor import (
     HourlyAveragePowerSensor,
     AverageMaxPowerSensor,
     AverageMaxCostSensor,
+    MaxPowerTimestampSensor,
     GatedSensorEntity,
     async_setup_entry,
     async_setup_platform,
@@ -78,6 +79,42 @@ class TestGatedSensorEntity:
                 mock_hass, ["sensor.test_power", "binary_sensor.test_gate"], callback
             )
 
+    def test_log_scaling_applied(self, mock_config_entry, mock_hass):
+        """Test _log_scaling_applied method."""
+        sensor = GatedSensorEntity(mock_config_entry)
+        sensor.hass = mock_hass
+        sensor._coordinator = MagicMock()
+        sensor._coordinator.power_scaling_factor = 2.0
+        sensor._coordinator.time_scaling_factor = 1.5
+
+        with patch(
+            "custom_components.power_max_tracker.sensor._LOGGER.debug"
+        ) as mock_debug:
+            sensor._log_scaling_applied("TestSensor", 100.0, 300.0, True)
+
+            mock_debug.assert_called_once_with(
+                "TestSensor scaling applied - Original: 100.0W, "
+                "Power scaling: 2.0, Time scaling: 1.5 (applied: True), Final: 300.0W"
+            )
+
+    def test_log_scaling_applied_no_time_scaling(self, mock_config_entry, mock_hass):
+        """Test _log_scaling_applied method without time scaling."""
+        sensor = GatedSensorEntity(mock_config_entry)
+        sensor.hass = mock_hass
+        sensor._coordinator = MagicMock()
+        sensor._coordinator.power_scaling_factor = 1.0
+        sensor._coordinator.time_scaling_factor = None
+
+        with patch(
+            "custom_components.power_max_tracker.sensor._LOGGER.debug"
+        ) as mock_debug:
+            sensor._log_scaling_applied("TestSensor", 200.0, 200.0, False)
+
+            mock_debug.assert_called_once_with(
+                "TestSensor scaling applied - Original: 200.0W, "
+                "Power scaling: 1.0, Time scaling: N/A (applied: False), Final: 200.0W"
+            )
+
 
 class TestMaxPowerSensor:
     """Test cases for MaxPowerSensor."""
@@ -113,6 +150,106 @@ class TestMaxPowerSensor:
 
         assert "last_update" in attributes
         assert attributes["last_update"] == now.isoformat()
+
+
+class TestMaxPowerTimestampSensor:
+    """Test cases for MaxPowerTimestampSensor."""
+
+    @pytest.mark.asyncio
+    async def test_init_quarterly_cycle(
+        self, coordinator_quarterly, mock_config_entry_quarterly
+    ):
+        """Test timestamp sensor initialization with quarterly cycle name."""
+        sensor = MaxPowerTimestampSensor(
+            coordinator_quarterly, 0, "Max Quarterly Average Power Last Update 1"
+        )
+
+        assert sensor._coordinator == coordinator_quarterly
+        assert sensor._index == 0
+        assert sensor._attr_name == "Max Quarterly Average Power Last Update 1"
+
+    def test_available_with_timestamp(self, coordinator, mock_config_entry):
+        """Sensor should be available when timestamp exists."""
+        sensor = MaxPowerTimestampSensor(
+            coordinator, 0, "Max Hourly Average Power Last Update 1"
+        )
+
+        now = datetime(2023, 1, 1, 12, 0, tzinfo=timezone.utc)
+        coordinator.max_values_timestamps = [now, None]
+
+        assert sensor.available is True
+
+    def test_available_no_timestamp(self, coordinator, mock_config_entry):
+        """Sensor should be unavailable when no timestamp exists."""
+        sensor = MaxPowerTimestampSensor(
+            coordinator, 0, "Max Hourly Average Power Last Update 1"
+        )
+
+        coordinator.max_values_timestamps = [None, None]
+
+        assert sensor.available is False
+
+    def test_native_value_with_timestamp(self, coordinator, mock_config_entry):
+        """native_value should return aware datetime when stored."""
+        sensor = MaxPowerTimestampSensor(
+            coordinator, 0, "Max Hourly Average Power Last Update 1"
+        )
+
+        now = datetime(2023, 1, 1, 12, 0, tzinfo=timezone.utc)
+        coordinator.max_values_timestamps = [now, None]
+
+        assert sensor.native_value == now
+
+    def test_native_value_with_naive_timestamp(self, coordinator, mock_config_entry):
+        """native_value should convert naive datetime to timezone-aware."""
+        sensor = MaxPowerTimestampSensor(
+            coordinator, 0, "Max Hourly Average Power Last Update 1"
+        )
+
+        naive_ts = datetime(2023, 1, 1, 12, 0, 0)
+        coordinator.max_values_timestamps = [naive_ts, None]
+
+        result = sensor.native_value
+        assert result is not None
+        assert result.tzinfo is not None
+
+    def test_native_value_no_timestamp(self, coordinator, mock_config_entry):
+        """native_value returns None when no timestamp exists."""
+        sensor = MaxPowerTimestampSensor(
+            coordinator, 0, "Max Hourly Average Power Last Update 1"
+        )
+
+        coordinator.max_values_timestamps = [None, None]
+
+        assert sensor.native_value is None
+
+    def test_extra_state_attributes(self, coordinator, mock_config_entry):
+        """Extra attributes should include the corresponding power value."""
+        sensor = MaxPowerTimestampSensor(
+            coordinator, 0, "Max Hourly Average Power Last Update 1"
+        )
+
+        coordinator.max_values = [5.0, 3.0]
+
+        attributes = sensor.extra_state_attributes
+
+        assert "power_value" in attributes
+        assert attributes["power_value"] == 5.0
+
+    def test_extra_state_attributes_with_none_value(
+        self, coordinator, mock_config_entry
+    ):
+        """Extra attributes should return 0.0 when power value is None."""
+        sensor = MaxPowerTimestampSensor(
+            coordinator, 0, "Max Hourly Average Power Last Update 1"
+        )
+
+        coordinator.max_values = [None, 3.0]
+
+        attributes = sensor.extra_state_attributes
+
+        assert "power_value" in attributes
+        assert attributes["power_value"] == 0.0
 
 
 class TestSourcePowerSensor:
