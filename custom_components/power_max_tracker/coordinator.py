@@ -325,21 +325,29 @@ class PowerMaxCoordinator:
             )
         )
 
-    @property
-    def average_max_value(self):
-        """Return the average of all max values."""
-        if self.max_values:
-            return sum(self.max_values) / len(self.max_values)
+    def _average_positive(self, values: list[float]) -> float:
+        """Calculate the average of values greater than 0 (excludes zero and negative values).
+
+        Args:
+            values: List of float values to average
+
+        Returns:
+            Average of positive values, or 0.0 if no positive values exist
+        """
+        positive_values = [v for v in values if v > 0]
+        if positive_values:
+            return sum(positive_values) / len(positive_values)
         return 0.0
 
     @property
+    def average_max_value(self):
+        """Return the average of all max values greater than 0 (excludes zero and negative values)."""
+        return self._average_positive(self.max_values)
+
+    @property
     def previous_month_average_max_value(self):
-        """Return the average of previous month max values."""
-        if self.previous_month_max_values:
-            return sum(self.previous_month_max_values) / len(
-                self.previous_month_max_values
-            )
-        return 0.0
+        """Return the average of previous month max values greater than 0 (excludes zero and negative values)."""
+        return self._average_positive(self.previous_month_max_values)
 
     def _watts_to_kilowatts(self, watts: float) -> float:
         """Convert watts to kilowatts.
