@@ -22,7 +22,9 @@ from .const import (
     SECONDS_PER_HOUR,
     SECONDS_PER_QUARTER_HOUR,
     CYCLE_HOURLY,
+    CYCLE_HALF_HOURLY,
     CYCLE_QUARTERLY,
+    HALF_HOURLY_UPDATE_MINUTES,
     QUARTERLY_UPDATE_MINUTES,
     WATTS_TO_KILOWATTS,
     STORAGE_VERSION,
@@ -101,19 +103,18 @@ class PowerMaxCoordinator:
     @property
     def period(self):
         """Return the statistics period based on cycle type."""
-        if self.cycle_type == CYCLE_QUARTERLY:
-            return "5minute"  # Quarterly uses aggregated 5-minute statistics
-        else:
-            return "hour"
+        if self.cycle_type in (CYCLE_HALF_HOURLY, CYCLE_QUARTERLY):
+            return "5minute"  # Sub-hourly intervals use aggregated 5-minute statistics
+        return "hour"
 
     @property
     def seconds_per_cycle(self):
         """Return seconds per cycle."""
-        return (
-            SECONDS_PER_QUARTER_HOUR
-            if self.cycle_type == CYCLE_QUARTERLY
-            else SECONDS_PER_HOUR
-        )
+        if self.cycle_type == CYCLE_HALF_HOURLY:
+            return SECONDS_PER_QUARTER_HOUR * 2
+        if self.cycle_type == CYCLE_QUARTERLY:
+            return SECONDS_PER_QUARTER_HOUR
+        return SECONDS_PER_HOUR
 
     @property
     def update_hour(self):
@@ -123,10 +124,11 @@ class PowerMaxCoordinator:
     @property
     def update_minute(self):
         """Return minute parameter for time tracking."""
+        if self.cycle_type == CYCLE_HALF_HOURLY:
+            return HALF_HOURLY_UPDATE_MINUTES
         if self.cycle_type == CYCLE_QUARTERLY:
             return QUARTERLY_UPDATE_MINUTES
-        else:
-            return 1
+        return 1
 
     @property
     def update_second(self):
@@ -147,6 +149,11 @@ class PowerMaxCoordinator:
             # Round down to nearest 15 minutes
             minutes = now.minute
             floored_minute = (minutes // 15) * 15
+            floored = now.replace(minute=floored_minute, second=0, microsecond=0)
+        elif self.cycle_type == CYCLE_HALF_HOURLY:
+            # Round down to nearest 30 minutes
+            minutes = now.minute
+            floored_minute = (minutes // 30) * 30
             floored = now.replace(minute=floored_minute, second=0, microsecond=0)
         else:  # CYCLE_HOURLY
             # Round down to nearest hour
@@ -511,12 +518,12 @@ class PowerMaxCoordinator:
         Returns:
             Average power in watts, or None if no data available
         """
-        if self.cycle_type == CYCLE_QUARTERLY:
-            # For quarterly cycles, aggregate 5-minute statistics since "15min" is not supported
-            return await self._query_quarterly_statistics(start_time, end_time)
-        else:
-            # For hourly cycles, use the hour period directly
-            period = "hour"
+        if self.cycle_type in (CYCLE_HALF_HOURLY, CYCLE_QUARTERLY):
+            # For sub-hourly cycles, aggregate 5-minute statistics since shorter periods are not directly supported
+            return await self._query_sub_hourly_statistics(start_time, end_time)
+
+        # For hourly cycles, use the hour period directly
+        period = "hour"
 
         _LOGGER.debug(
             f"Querying {period} stats for {self.source_sensor_entity_id} from {start_time} to {end_time}"
@@ -545,17 +552,17 @@ class PowerMaxCoordinator:
             )
             return None
 
-    async def _query_quarterly_statistics(
+    async def _query_sub_hourly_statistics(
         self, start_time: datetime, end_time: datetime
     ) -> float | None:
-        """Query and aggregate 5-minute statistics for quarterly cycles.
+        """Query and aggregate 5-minute statistics for sub-hourly cycles.
 
         Args:
-            start_time: Start time of the 15-minute period
-            end_time: End time of the 15-minute period
+            start_time: Start time of the cycle period
+            end_time: End time of the cycle period
 
         Returns:
-            Average power in watts over the 15-minute period, or None if no data
+            Average power in watts over the sub-hourly period, or None if no data
         """
         period_duration = timedelta(minutes=5)
         means = []
@@ -595,12 +602,12 @@ class PowerMaxCoordinator:
             # Return the average of all 5-minute means
             avg_mean = sum(means) / len(means)
             _LOGGER.debug(
-                f"Quarterly average calculated from {len(means)} 5-minute periods: {avg_mean} W"
+                f"Sub-hourly average calculated from {len(means)} 5-minute periods: {avg_mean} W"
             )
             return avg_mean
         else:
             _LOGGER.warning(
-                f"No 5-minute statistics found for quarterly period {self.source_sensor_entity_id} from {start_time} to {end_time}"
+                f"No 5-minute statistics found for sub-hourly period {self.source_sensor_entity_id} from {start_time} to {end_time}"
             )
             return None
 

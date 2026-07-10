@@ -16,6 +16,7 @@ from .const import (
     CONF_SINGLE_PEAK_PER_DAY,
     CONF_CYCLE_TYPE,
     CYCLE_HOURLY,
+    CYCLE_HALF_HOURLY,
     CYCLE_QUARTERLY,
 )
 
@@ -174,7 +175,7 @@ class PowerMaxTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_SINGLE_PEAK_PER_DAY: selector.BooleanSelector(),
             CONF_CYCLE_TYPE: selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[CYCLE_HOURLY, CYCLE_QUARTERLY],
+                    options=[CYCLE_HOURLY, CYCLE_HALF_HOURLY, CYCLE_QUARTERLY],
                     translation_key="cycle_type",
                 )
             ),
