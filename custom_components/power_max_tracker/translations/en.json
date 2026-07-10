@@ -91,6 +91,7 @@
     "cycle_type": {
       "options": {
         "hourly": "Hourly",
+        "half_hourly": "Half-hourly (30 minutes)",
         "quarterly": "Quarter-hourly (15 minutes)"
       }
     }

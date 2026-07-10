@@ -90,6 +90,7 @@
       "cycle_type": {
         "options": {
           "hourly": "Timvis",
+          "half_hourly": "Halvtimmesvis (30 minuter)",
           "quarterly": "Kvartvis (15 minuter)"
         }
       }

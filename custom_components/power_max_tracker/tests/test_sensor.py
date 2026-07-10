@@ -26,6 +26,7 @@ from custom_components.power_max_tracker.const import (
     CONF_NUM_MAX_VALUES,
     CONF_BINARY_SENSOR,
     DOMAIN,
+    CYCLE_HALF_HOURLY,
 )
 
 
@@ -526,10 +527,82 @@ class TestHourlyAveragePowerSensor:
         assert sensor._coordinator == coordinator
         assert sensor._entry == mock_config_entry
 
-    def test_native_value_no_data(self, coordinator, mock_config_entry):
-        """Test native value with no data."""
+    @pytest.mark.asyncio
+    async def test_async_added_to_hass_registers_half_hourly_listener(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Half-hourly cycles should register a listener for :00 and :30."""
+        coordinator.cycle_type = CYCLE_HALF_HOURLY
         sensor = HourlyAveragePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
 
+        mock_store = MagicMock()
+        mock_store.async_load = AsyncMock(return_value=None)
+        mock_store.async_save = AsyncMock()
+
+        with patch(
+            "custom_components.power_max_tracker.sensor.Store", return_value=mock_store
+        ), patch(
+            "custom_components.power_max_tracker.sensor.async_track_state_change_event"
+        ) as mock_state_track, patch(
+            "custom_components.power_max_tracker.sensor.async_track_time_change"
+        ) as mock_time_track:
+            await sensor.async_added_to_hass()
+
+        assert mock_time_track.call_count == 1
+        args, kwargs = mock_time_track.call_args
+        assert args[0] is mock_hass
+        assert callable(args[1])
+        assert kwargs["hour"] is None
+        assert kwargs["minute"] == coordinator.cycle_boundary_minutes
+        assert kwargs["second"] == 0
+        mock_state_track.assert_called_once()
+        assert mock_store.async_load.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_async_cycle_start_resets_state_for_half_hourly_cycle(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """The cycle-start callback should reset accumulated state at :00 and :30."""
+        coordinator.cycle_type = CYCLE_HALF_HOURLY
+        sensor = HourlyAveragePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        mock_store = MagicMock()
+        mock_store.async_load = AsyncMock(return_value=None)
+        mock_store.async_save = AsyncMock()
+
+        with patch(
+            "custom_components.power_max_tracker.sensor.Store", return_value=mock_store
+        ), patch(
+            "custom_components.power_max_tracker.sensor.async_track_state_change_event"
+        ), patch(
+            "custom_components.power_max_tracker.sensor.async_track_time_change"
+        ) as mock_time_track, patch.object(
+            sensor, "async_write_ha_state"
+        ) as mock_write_state:
+            await sensor.async_added_to_hass()
+
+            callback = mock_time_track.call_args.args[1]
+            sensor._accumulated_energy = 2.5
+            sensor._last_power = 4.0
+            sensor._last_time = datetime(2023, 1, 1, 12, 15, tzinfo=timezone.utc)
+            sensor._cycle_start = datetime(2023, 1, 1, 12, 0, tzinfo=timezone.utc)
+
+            for boundary in [datetime(2023, 1, 1, 12, 0, tzinfo=timezone.utc), datetime(2023, 1, 1, 12, 30, tzinfo=timezone.utc)]:
+                sensor._accumulated_energy = 2.5
+                sensor._last_power = 4.0
+                sensor._last_time = datetime(2023, 1, 1, 12, 15, tzinfo=timezone.utc)
+                sensor._cycle_start = datetime(2023, 1, 1, 12, 0, tzinfo=timezone.utc)
+
+                await callback(boundary)
+
+                assert sensor._accumulated_energy == 0.0
+                assert sensor._last_power == 0.0
+                assert sensor._last_time == boundary
+                assert sensor._cycle_start == boundary.replace(second=0, microsecond=0)
+
+        assert mock_write_state.call_count == 2
         # Without proper initialization, should return 0.0
         assert sensor.native_value == 0.0
 

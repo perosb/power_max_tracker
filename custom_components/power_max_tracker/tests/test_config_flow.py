@@ -23,6 +23,8 @@ from custom_components.power_max_tracker.const import (
     CONF_SINGLE_PEAK_PER_DAY,
     CONF_CYCLE_TYPE,
     CYCLE_HOURLY,
+    CYCLE_HALF_HOURLY,
+    CYCLE_QUARTERLY,
 )
 
 
@@ -60,6 +62,19 @@ class TestPowerMaxTrackerConfigFlow:
         assert schema is not None
         # We can't easily check individual fields in a vol.Schema, but we can verify it's callable
         assert callable(schema)
+
+    def test_cycle_type_options_include_new_intervals(self, mock_hass):
+        """Test cycle type selector includes 15-minute and 30-minute options."""
+        flow = PowerMaxTrackerConfigFlow()
+        flow.hass = mock_hass
+
+        fields = flow._get_base_schema_fields()
+        cycle_selector = fields[CONF_CYCLE_TYPE]
+        assert cycle_selector.config["options"] == [
+            CYCLE_HOURLY,
+            CYCLE_HALF_HOURLY,
+            CYCLE_QUARTERLY,
+        ]
 
     @pytest.mark.asyncio
     async def test_async_step_user_success(self, mock_hass):

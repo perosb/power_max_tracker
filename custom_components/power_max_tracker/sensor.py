@@ -23,6 +23,7 @@ from .const import (
     CONF_MONTHLY_RESET,
     KILOWATT_HOURS_PER_WATT_HOUR,
     SECONDS_PER_HOUR,
+    CYCLE_HALF_HOURLY,
     CYCLE_QUARTERLY,
     CYCLE_HOURLY,
 )
@@ -32,6 +33,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # Mapping for cycle type display names (entity names are typically in English)
 CYCLE_NAME_MAPPING = {
+    CYCLE_HALF_HOURLY: "Half-hourly",
     CYCLE_QUARTERLY: "Quarterly",
     CYCLE_HOURLY: "Hourly",
 }
@@ -517,9 +519,12 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
             # Quarterly: cycles start at :00, :15, :30, :45
             minute = (now.minute // 15) * 15
             return now.replace(minute=minute, second=0, microsecond=0)
-        else:
-            # Hourly: cycles start at :00
-            return now.replace(minute=0, second=0, microsecond=0)
+        if self._coordinator.cycle_type == CYCLE_HALF_HOURLY:
+            # Half-hourly: cycles start at :00 and :30
+            minute = (now.minute // 30) * 30
+            return now.replace(minute=minute, second=0, microsecond=0)
+        # Hourly: cycles start at :00
+        return now.replace(minute=0, second=0, microsecond=0)
 
     async def _save_state(self):
         """Save the current state to storage."""
@@ -579,26 +584,15 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
             self.async_write_ha_state()
 
         # Track cycle changes
-        if self._coordinator.cycle_type == CYCLE_QUARTERLY:
-            self.async_on_remove(
-                async_track_time_change(
-                    self.hass,
-                    _async_cycle_start,
-                    hour=None,
-                    minute=[0, 15, 30, 45],
-                    second=0,
-                )
+        self.async_on_remove(
+            async_track_time_change(
+                self.hass,
+                _async_cycle_start,
+                hour=None,
+                minute=self._coordinator.cycle_boundary_minutes,
+                second=0,
             )
-        else:
-            self.async_on_remove(
-                async_track_time_change(
-                    self.hass,
-                    _async_cycle_start,
-                    hour=None,
-                    minute=0,
-                    second=0,
-                )
-            )
+        )
 
         async def _async_state_changed(event):
             """Handle state changes of scaled source sensor."""
