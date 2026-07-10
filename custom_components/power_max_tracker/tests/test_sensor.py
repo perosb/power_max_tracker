@@ -549,13 +549,13 @@ class TestHourlyAveragePowerSensor:
         ) as mock_time_track:
             await sensor.async_added_to_hass()
 
-        mock_time_track.assert_called_once_with(
-            mock_hass,
-            mock_time_track.call_args.args[1],
-            hour=None,
-            minute=coordinator.cycle_boundary_minutes,
-            second=0,
-        )
+        assert mock_time_track.call_count == 1
+        args, kwargs = mock_time_track.call_args
+        assert args[0] is mock_hass
+        assert callable(args[1])
+        assert kwargs["hour"] is None
+        assert kwargs["minute"] == coordinator.cycle_boundary_minutes
+        assert kwargs["second"] == 0
         mock_state_track.assert_called_once()
         assert mock_store.async_load.await_count == 1
 
