@@ -126,7 +126,7 @@ class TestPowerMaxCoordinator:
     def test_update_minute_property(self, coordinator):
         """Test update_minute property for different cycle types."""
         # Default is hourly
-        assert coordinator.update_minute == 1
+        assert coordinator.update_minute == 0
 
         # Change to half-hourly
         coordinator.cycle_type = "half_hourly"
@@ -134,7 +134,7 @@ class TestPowerMaxCoordinator:
 
         # Change to quarterly
         coordinator.cycle_type = "quarterly"
-        assert coordinator.update_minute == [0, 15, 30, 45]
+        assert coordinator.update_minute == QUARTERLY_UPDATE_MINUTES
 
     def test_average_max_value_empty_list(self, coordinator):
         """Test average_max_value property with empty max_values list."""

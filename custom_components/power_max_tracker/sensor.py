@@ -584,36 +584,15 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
             self.async_write_ha_state()
 
         # Track cycle changes
-        if self._coordinator.cycle_type == CYCLE_QUARTERLY:
-            self.async_on_remove(
-                async_track_time_change(
-                    self.hass,
-                    _async_cycle_start,
-                    hour=None,
-                    minute=[0, 15, 30, 45],
-                    second=0,
-                )
+        self.async_on_remove(
+            async_track_time_change(
+                self.hass,
+                _async_cycle_start,
+                hour=None,
+                minute=self._coordinator.update_minute,
+                second=0,
             )
-        elif self._coordinator.cycle_type == CYCLE_HALF_HOURLY:
-            self.async_on_remove(
-                async_track_time_change(
-                    self.hass,
-                    _async_cycle_start,
-                    hour=None,
-                    minute=[0, 30],
-                    second=0,
-                )
-            )
-        else:
-            self.async_on_remove(
-                async_track_time_change(
-                    self.hass,
-                    _async_cycle_start,
-                    hour=None,
-                    minute=0,
-                    second=0,
-                )
-            )
+        )
 
         async def _async_state_changed(event):
             """Handle state changes of scaled source sensor."""

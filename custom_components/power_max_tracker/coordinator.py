@@ -128,7 +128,7 @@ class PowerMaxCoordinator:
             return HALF_HOURLY_UPDATE_MINUTES
         if self.cycle_type == CYCLE_QUARTERLY:
             return QUARTERLY_UPDATE_MINUTES
-        return 1
+        return 0
 
     @property
     def update_second(self):
