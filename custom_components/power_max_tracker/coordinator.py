@@ -122,13 +122,22 @@ class PowerMaxCoordinator:
         return None
 
     @property
-    def update_minute(self):
-        """Return minute parameter for time tracking."""
+    def cycle_boundary_minutes(self):
+        """Return minute parameter for cycle-boundary tracking."""
         if self.cycle_type == CYCLE_HALF_HOURLY:
             return HALF_HOURLY_UPDATE_MINUTES
         if self.cycle_type == CYCLE_QUARTERLY:
             return QUARTERLY_UPDATE_MINUTES
         return 0
+
+    @property
+    def update_minute(self):
+        """Return minute parameter for coordinator statistics updates."""
+        if self.cycle_type == CYCLE_HALF_HOURLY:
+            return HALF_HOURLY_UPDATE_MINUTES
+        if self.cycle_type == CYCLE_QUARTERLY:
+            return QUARTERLY_UPDATE_MINUTES
+        return 1
 
     @property
     def update_second(self):

@@ -553,7 +553,7 @@ class TestHourlyAveragePowerSensor:
             mock_hass,
             mock_time_track.call_args.args[1],
             hour=None,
-            minute=coordinator.update_minute,
+            minute=coordinator.cycle_boundary_minutes,
             second=0,
         )
         mock_state_track.assert_called_once()

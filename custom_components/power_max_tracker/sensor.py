@@ -589,7 +589,7 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
                 self.hass,
                 _async_cycle_start,
                 hour=None,
-                minute=self._coordinator.update_minute,
+                minute=self._coordinator.cycle_boundary_minutes,
                 second=0,
             )
         )
