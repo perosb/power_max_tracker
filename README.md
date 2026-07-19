@@ -2,41 +2,41 @@
 
 # Power Max Tracker Integration for Home Assistant
 
-Tracks maximum hourly average power values from a power sensor, with optional gating by binary sensor or time windows. Creates sensors for max values, averages, costs, and real-time tracking.
+Tracks maximum cycle-average power values from a power sensor, with optional gating by a binary sensor or time window. It creates sensors for maximum values, averages, costs, and real-time tracking.
 
-*Swedish: Spårar effektvärden från en effektsensor för att enkelt kunna påverka din effekttariff. Valfri styrning via binär sensor eller tidsfönster. Skapar sensorer för maxvärden, medelvärden, kostnader och realtidsspårning.*
+*Swedish: Spårar maxvärden för effektuttag från en effektsensor, med valfri styrning via binär sensor eller tidsfönster. Skapar sensorer för maxvärden, medelvärden, kostnader och realtidsspårning.*
 
 ## Features
-- **Max Power Sensors**: Top hourly average power values in kW with timestamps
-- **Average & Cost Sensors**: Average of max values and monetary cost calculation
-- **Real-time Source Sensor**: Mirrors input sensor with gating applied
-- **Hourly Average Sensor**: Current hour's average power calculation
-- **Flexible Gating**: Binary sensor or time-window based power scaling
-- **Single Peak per Day**: Option to track only one peak value per day instead of multiple hourly peaks
-- **Automatic Scaling**: Detects W/kW units from source sensor
-- **Services**: Manual max value updates and resets
+- **Cycle-based max tracking**: Tracks maximum values for hourly, half-hourly, or quarterly averages
+- **Average & cost sensors**: Calculates averages of the stored max values and optional cost estimates
+- **Real-time source sensor**: Mirrors the input sensor with any configured gating applied
+- **Current-cycle average sensor**: Shows the current ongoing cycle average in kW
+- **Flexible gating**: Supports either binary-sensor gating or time-window scaling
+- **Single peak per day**: Option to keep only one peak per day instead of multiple cycle peaks
+- **Automatic unit handling**: Detects W or kW from the source sensor automatically, with an optional explicit scaling override
+- **Services**: Includes manual recalculation and reset services
 
 ## Installation
-1. **Via HACS**: Add `https://github.com/perosb/power_max_tracker` as custom repository
-2. **Manual**: Copy `power_max_tracker` folder to `/config/custom_components/`
+1. **Via HACS**: Add `https://github.com/perosb/power_max_tracker` as a custom repository
+2. **Manual**: Copy the `power_max_tracker` folder to `/config/custom_components/`
 3. Restart Home Assistant
 
 ## Configuration
 
 ### UI Setup
-1. **Settings > Devices & Services > Add Integration**
-2. Search "Power Max Tracker"
+1. Go to **Settings > Devices & Services > Add Integration**
+2. Search for **Power Max Tracker**
 3. Configure:
    - **Source Sensor**: Power sensor to track (must provide W or kW)
    - **Number of Max Values**: How many top values to track (1-10)
-   - **Monthly Reset**: Clear max values on 1st of each month
-   - **Single Peak per Day**: Track only one peak per day instead of multiple hourly peaks
-   - **Price per kW**: Electricity cost (creates cost sensor when > 0)
-   - **Cycle Type**: Choose between hourly or quarterly (15-minute) tracking intervals
-
-4. Choose gating method:
-   - **Binary Sensor**: Only track when sensor is "on"
-   - **Time Window**: Scale power during specific hours (e.g., peak pricing)
+   - **Monthly Reset**: Clear stored maxima on the 1st of each month
+   - **Single Peak per Day**: Track only one peak per day instead of multiple cycle peaks
+   - **Price per kW**: Optional electricity cost input (creates a cost sensor when greater than 0)
+   - **Cycle Type**: Choose between hourly, half-hourly, or quarterly tracking intervals
+   - **Power Scaling Factor**: Optional manual override for converting the source unit to watts
+4. Choose one gating method:
+   - **Binary Sensor**: Only track when the selected sensor is "on"
+   - **Time Window**: Apply scaling during a specific time window (for example, peak pricing)
 
 ### YAML Configuration
 ```yaml
@@ -47,7 +47,8 @@ sensor:
     monthly_reset: true
     single_peak_per_day: false
     price_per_kw: 0.25
-    cycle_type: hourly  # or "quarterly" for 15-minute intervals
+    cycle_type: hourly  # hourly, half_hourly, or quarterly
+    power_scaling_factor: 1.0  # optional; auto-detected when omitted
     # Choose one gating method:
     binary_sensor: binary_sensor.power_active  # OR
     start_time: "14:00"
@@ -58,18 +59,21 @@ sensor:
 ## Usage
 
 ### Entities Created
+Entity names follow the selected cycle type. For example, with an hourly setup you will get sensors such as:
 - `sensor.max_hourly_average_power_1_<id>`: Highest cycle average (kW)
 - `sensor.max_hourly_average_power_2_<id>`: Second highest (kW)
-- `sensor.max_hourly_average_power_last_update_1_<id>`: Timestamp when highest value was recorded
-- `sensor.max_hourly_average_power_last_update_2_<id>`: Timestamp when second highest value was recorded
-- `sensor.average_max_hourly_average_power_<id>`: Average of all max values
-- `sensor.average_max_hourly_average_power_cost_<id>`: Cost of average max (when price configured)
-- `sensor.power_max_source_<id>`: Real-time source tracking (W, hidden by default)
-- `sensor.<cycle>_average_power_<id>`: Current cycle average (kW, e.g., "hourly_average_power" or "quarterly_average_power")
+- `sensor.max_hourly_average_power_last_update_1_<id>`: Timestamp for the highest recorded value
+- `sensor.max_hourly_average_power_last_update_2_<id>`: Timestamp for the second highest recorded value
+- `sensor.average_max_hourly_average_power_<id>`: Average of all stored max values
+- `sensor.average_max_hourly_average_power_cost_<id>`: Cost of the average max (when pricing is configured)
+- `sensor.power_max_source_<id>`: Real-time source tracking (hidden by default)
+- `sensor.hourly_average_power_<id>`: Current cycle average (kW)
+
+The same pattern is used for half-hourly and quarterly cycles, with the cycle name included in the entity names.
 
 ### Services
-- `power_max_tracker.update_max_values`: Recalculate from midnight
-- `power_max_tracker.reset_max_values`: Reset to current month max
+- `power_max_tracker.update_max_values`: Recalculate stored maxima from midnight
+- `power_max_tracker.reset_max_values`: Reset the stored maxima for the current month
 
 ### Examples
 
@@ -102,13 +106,13 @@ sensor:
 ```
 
 ## Important Notes
-- **Units**: Automatically detects W/kW from source sensor's unit_of_measurement
-- **Gating**: Binary sensor and time scaling are mutually exclusive
-- **Time Windows**: Support crossing midnight (e.g., 22:00 to 06:00)
-- **Cycle Types**: Choose between hourly (60-minute) or quarterly (15-minute) tracking intervals
-- **Single Peak per Day**: When enabled, tracks only the highest peak per day instead of multiple cycle peaks, changing how max values are stored and averaged
-- **Negative Values**: Ignored in all calculations
-- **Storage**: Max values persist across restarts
+- **Units**: The integration automatically detects W or kW from the source sensor's unit, but you can override the conversion with `power_scaling_factor`
+- **Gating**: Binary sensor gating and time-window scaling are mutually exclusive
+- **Time Windows**: Time windows can cross midnight (for example, 22:00 to 06:00)
+- **Cycle Types**: Choose between hourly, half-hourly, or quarterly tracking intervals
+- **Single Peak per Day**: When enabled, only the highest peak for each day is stored and averaged
+- **Negative Values**: Negative values are ignored in all calculations
+- **Storage**: Stored max values persist across restarts
 
 ## License
 MIT License
