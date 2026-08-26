@@ -603,8 +603,176 @@ class TestHourlyAveragePowerSensor:
                 assert sensor._cycle_start == boundary.replace(second=0, microsecond=0)
 
         assert mock_write_state.call_count == 2
+        # Last boundary is 12:30 with cycle_start 12:00 and 2.5 kWh → 5.0 kW
+        assert sensor._previous_cycle == 5.0
         # Without proper initialization, should return 0.0
         assert sensor.native_value == 0.0
+
+    def test_extra_state_attributes_previous_cycle(
+        self, coordinator, mock_config_entry
+    ):
+        """Previous cycle average should be exposed as an attribute."""
+        sensor = HourlyAveragePowerSensor(coordinator, mock_config_entry)
+
+        assert sensor.extra_state_attributes == {"previous_cycle": None}
+
+        sensor._previous_cycle = 4.56789
+        attributes = sensor.extra_state_attributes
+        assert attributes["previous_cycle"] == 4.568
+
+    @pytest.mark.asyncio
+    async def test_cycle_start_stores_previous_cycle_average(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Cycle reset should snapshot the completed cycle average."""
+        sensor = HourlyAveragePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        mock_store = MagicMock()
+        mock_store.async_load = AsyncMock(return_value=None)
+        mock_store.async_save = AsyncMock()
+
+        with patch(
+            "custom_components.power_max_tracker.sensor.Store", return_value=mock_store
+        ), patch(
+            "custom_components.power_max_tracker.sensor.async_track_state_change_event"
+        ), patch(
+            "custom_components.power_max_tracker.sensor.async_track_time_change"
+        ) as mock_time_track, patch.object(
+            sensor, "async_write_ha_state"
+        ):
+            await sensor.async_added_to_hass()
+
+            callback = mock_time_track.call_args.args[1]
+            sensor._accumulated_energy = 1.5  # kWh over one hour → 1.5 kW
+            sensor._last_power = 2.0
+            sensor._last_time = datetime(2023, 1, 1, 12, 59, tzinfo=timezone.utc)
+            sensor._cycle_start = datetime(2023, 1, 1, 12, 0, tzinfo=timezone.utc)
+
+            boundary = datetime(2023, 1, 1, 13, 0, tzinfo=timezone.utc)
+            await callback(boundary)
+
+            assert sensor._previous_cycle == 1.5
+            assert sensor.extra_state_attributes["previous_cycle"] == 1.5
+            assert sensor._accumulated_energy == 0.0
+            saved = mock_store.async_save.await_args.args[0]
+            assert saved["previous_cycle"] == 1.5
+
+    @pytest.mark.asyncio
+    async def test_load_restores_previous_cycle_same_cycle(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Persisted previous_cycle should restore when still in the same cycle."""
+        sensor = HourlyAveragePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        now = datetime(2023, 1, 1, 12, 30, tzinfo=timezone.utc)
+        cycle_start = datetime(2023, 1, 1, 12, 0, tzinfo=timezone.utc)
+        mock_store = MagicMock()
+        mock_store.async_load = AsyncMock(
+            return_value={
+                "accumulated_energy": 0.4,
+                "last_power": 800.0,
+                "last_time": now.isoformat(),
+                "cycle_start": cycle_start.isoformat(),
+                "previous_cycle": 3.25,
+            }
+        )
+        mock_store.async_save = AsyncMock()
+
+        with patch(
+            "custom_components.power_max_tracker.sensor.Store", return_value=mock_store
+        ), patch(
+            "custom_components.power_max_tracker.sensor.async_track_state_change_event"
+        ), patch(
+            "custom_components.power_max_tracker.sensor.async_track_time_change"
+        ), patch(
+            "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+            return_value=now,
+        ):
+            await sensor.async_added_to_hass()
+
+        assert sensor._previous_cycle == 3.25
+        assert sensor._accumulated_energy == 0.4
+        assert sensor._cycle_start == cycle_start
+
+    @pytest.mark.asyncio
+    async def test_load_snapshots_previous_cycle_when_cycle_changed(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Stored accumulation from a finished cycle should become previous_cycle."""
+        sensor = HourlyAveragePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        now = datetime(2023, 1, 1, 13, 10, tzinfo=timezone.utc)
+        stored_cycle_start = datetime(2023, 1, 1, 12, 0, tzinfo=timezone.utc)
+        last_time = datetime(2023, 1, 1, 12, 59, tzinfo=timezone.utc)
+        mock_store = MagicMock()
+        mock_store.async_load = AsyncMock(
+            return_value={
+                "accumulated_energy": 2.0,  # 2 kWh over ~59 min
+                "last_power": 2000.0,
+                "last_time": last_time.isoformat(),
+                "cycle_start": stored_cycle_start.isoformat(),
+                "previous_cycle": 1.0,
+            }
+        )
+        mock_store.async_save = AsyncMock()
+
+        with patch(
+            "custom_components.power_max_tracker.sensor.Store", return_value=mock_store
+        ), patch(
+            "custom_components.power_max_tracker.sensor.async_track_state_change_event"
+        ), patch(
+            "custom_components.power_max_tracker.sensor.async_track_time_change"
+        ), patch(
+            "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+            return_value=now,
+        ):
+            await sensor.async_added_to_hass()
+
+        elapsed_seconds = (last_time - stored_cycle_start).total_seconds()
+        expected = round(2.0 * 3600 / elapsed_seconds, 3)
+        assert sensor._previous_cycle == expected
+        assert sensor._accumulated_energy == 0.0
+        assert sensor._cycle_start == datetime(2023, 1, 1, 13, 0, tzinfo=timezone.utc)
+
+    @pytest.mark.asyncio
+    async def test_load_keeps_stored_previous_cycle_when_new_cycle_empty(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Keep persisted previous_cycle if stored cycle already reset."""
+        sensor = HourlyAveragePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+
+        now = datetime(2023, 1, 1, 13, 10, tzinfo=timezone.utc)
+        stored_cycle_start = datetime(2023, 1, 1, 12, 0, tzinfo=timezone.utc)
+        mock_store = MagicMock()
+        mock_store.async_load = AsyncMock(
+            return_value={
+                "accumulated_energy": 0.0,
+                "last_power": 0.0,
+                "last_time": stored_cycle_start.isoformat(),
+                "cycle_start": stored_cycle_start.isoformat(),
+                "previous_cycle": 4.2,
+            }
+        )
+        mock_store.async_save = AsyncMock()
+
+        with patch(
+            "custom_components.power_max_tracker.sensor.Store", return_value=mock_store
+        ), patch(
+            "custom_components.power_max_tracker.sensor.async_track_state_change_event"
+        ), patch(
+            "custom_components.power_max_tracker.sensor.async_track_time_change"
+        ), patch(
+            "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+            return_value=now,
+        ):
+            await sensor.async_added_to_hass()
+
+        assert sensor._previous_cycle == 4.2
+        assert sensor._accumulated_energy == 0.0
 
     @pytest.mark.asyncio
     async def test_time_based_scaling_within_window(
