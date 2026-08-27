@@ -511,20 +511,69 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
         self._last_power = 0.0
         self._last_time = None
         self._cycle_start = None
+        self._previous_cycle = None
         self._store = None
 
+    def _now(self):
+        """Return the current UTC time."""
+        return dt_util.utcnow()
+
     def _get_current_cycle_start(self, now):
-        """Get the start time of the current cycle."""
+        """Floor the cycle start in local time and return the UTC instant."""
+        local = dt_util.as_local(now)
         if self._coordinator.cycle_type == CYCLE_QUARTERLY:
-            # Quarterly: cycles start at :00, :15, :30, :45
-            minute = (now.minute // 15) * 15
-            return now.replace(minute=minute, second=0, microsecond=0)
-        if self._coordinator.cycle_type == CYCLE_HALF_HOURLY:
-            # Half-hourly: cycles start at :00 and :30
-            minute = (now.minute // 30) * 30
-            return now.replace(minute=minute, second=0, microsecond=0)
-        # Hourly: cycles start at :00
-        return now.replace(minute=0, second=0, microsecond=0)
+            minute = (local.minute // 15) * 15
+            local = local.replace(minute=minute, second=0, microsecond=0)
+        elif self._coordinator.cycle_type == CYCLE_HALF_HOURLY:
+            minute = (local.minute // 30) * 30
+            local = local.replace(minute=minute, second=0, microsecond=0)
+        else:
+            local = local.replace(minute=0, second=0, microsecond=0)
+        return dt_util.as_utc(local)
+
+    def _energy_delta(self, power_watts, delta_seconds):
+        """Convert a constant power interval to kWh."""
+        return (
+            power_watts
+            * delta_seconds
+            * KILOWATT_HOURS_PER_WATT_HOUR
+            / SECONDS_PER_HOUR
+        )
+
+    def _close_energy_interval(self, end_time):
+        """Hold the last observed power through end_time."""
+        if self._last_time is None or end_time is None:
+            return
+        delta_seconds = (end_time - self._last_time).total_seconds()
+        if delta_seconds <= 0:
+            return
+        self._accumulated_energy += self._energy_delta(
+            self._last_power, delta_seconds
+        )
+        self._last_time = end_time
+
+    def _compute_average(self, cycle_start, accumulated_energy, end_time):
+        """Compute average power in kW for a cycle interval."""
+        if cycle_start is None or end_time is None:
+            return 0.0
+        elapsed_seconds = (end_time - cycle_start).total_seconds()
+        if elapsed_seconds > 0:
+            return round(
+                accumulated_energy * SECONDS_PER_HOUR / elapsed_seconds,
+                3,
+            )
+        return 0.0
+
+    def _snapshot_previous_cycle(self, end_time):
+        """Close the cycle interval and store its average as previous_cycle."""
+        if self._cycle_start is None or end_time is None:
+            return
+        if (end_time - self._cycle_start).total_seconds() <= 0:
+            return
+        self._close_energy_interval(end_time)
+        self._previous_cycle = self._compute_average(
+            self._cycle_start, self._accumulated_energy, end_time
+        )
 
     async def _save_state(self):
         """Save the current state to storage."""
@@ -536,6 +585,7 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
                 "cycle_start": self._cycle_start.isoformat()
                 if self._cycle_start
                 else None,
+                "previous_cycle": self._previous_cycle,
             }
             await self._store.async_save(data)
 
@@ -549,22 +599,31 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
         )
         # Load persisted state
         stored_data = await self._store.async_load()
-        now = dt_util.utcnow()
+        now = self._now()
         current_cycle_start = self._get_current_cycle_start(now)
         if stored_data:
             self._accumulated_energy = stored_data.get("accumulated_energy", 0.0)
             self._last_power = stored_data.get("last_power", 0.0)
+            self._previous_cycle = stored_data.get("previous_cycle")
             last_time_str = stored_data.get("last_time")
             if last_time_str:
                 self._last_time = dt_util.parse_datetime(last_time_str)
             cycle_start_str = stored_data.get("cycle_start")
             if cycle_start_str:
-                self._cycle_start = dt_util.parse_datetime(cycle_start_str)
+                stored_cycle_start = dt_util.parse_datetime(cycle_start_str)
+                self._cycle_start = (
+                    self._get_current_cycle_start(stored_cycle_start)
+                    if stored_cycle_start
+                    else None
+                )
             # Check if stored cycle_start is in the current cycle
             if self._cycle_start and self._cycle_start != current_cycle_start:
-                # Different cycle, reset accumulated energy
+                cycle_end = self._cycle_start + timedelta(
+                    seconds=self._coordinator.seconds_per_cycle
+                )
+                if self._accumulated_energy > 0 or self._last_power:
+                    self._snapshot_previous_cycle(cycle_end)
                 self._accumulated_energy = 0.0
-                self._last_power = 0.0
                 self._last_time = now
                 self._cycle_start = current_cycle_start
         else:
@@ -573,11 +632,13 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
             self._last_power = 0.0
             self._last_time = now
             self._cycle_start = current_cycle_start
+            self._previous_cycle = None
 
         async def _async_cycle_start(now):
             """Reset at the start of each cycle."""
+            now = dt_util.as_utc(now)
+            self._snapshot_previous_cycle(now)
             self._accumulated_energy = 0.0
-            self._last_power = 0.0
             self._last_time = now
             self._cycle_start = self._get_current_cycle_start(now)
             await self._save_state()
@@ -596,7 +657,7 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
 
         async def _async_state_changed(event):
             """Handle state changes of scaled source sensor."""
-            now = dt_util.utcnow()
+            now = self._now()
             if self._last_time is None:
                 self._last_time = now
                 return
@@ -619,14 +680,9 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
                     if delta_seconds > 0:
                         # Average power in W
                         avg_power = (self._last_power + current_power) / 2
-                        # Energy in kWh
-                        delta_energy = (
-                            avg_power
-                            * delta_seconds
-                            * KILOWATT_HOURS_PER_WATT_HOUR
-                            / SECONDS_PER_HOUR
+                        self._accumulated_energy += self._energy_delta(
+                            avg_power, delta_seconds
                         )
-                        self._accumulated_energy += delta_energy
                     self._last_power = current_power
                     self._last_time = now
                 except (ValueError, TypeError):
@@ -655,17 +711,18 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
     @property
     def native_value(self):
         """Return the state."""
-        if self._cycle_start is None:
-            return 0.0
-        now = dt_util.utcnow()
-        elapsed_seconds = (now - self._cycle_start).total_seconds()
-        if elapsed_seconds > 0:
-            # Average power in kW = accumulated energy in kWh / elapsed time in hours
-            # Since elapsed time in hours = elapsed_seconds / SECONDS_PER_HOUR
-            # And 1 kWh = 1 kW * 1 hour, so kWh / hours = kW
-            # Formula: accumulated_energy_kWh * SECONDS_PER_HOUR / elapsed_seconds
-            return round(
-                self._accumulated_energy * SECONDS_PER_HOUR / elapsed_seconds,
-                3,
-            )
-        return 0.0
+        now = self._now()
+        energy = self._accumulated_energy
+        if self._last_time is not None:
+            delta_seconds = (now - self._last_time).total_seconds()
+            if delta_seconds > 0:
+                energy += self._energy_delta(self._last_power, delta_seconds)
+        return self._compute_average(self._cycle_start, energy, now)
+
+    @property
+    def extra_state_attributes(self):
+        """Return extra attributes."""
+        previous_cycle = self._previous_cycle
+        if previous_cycle is not None:
+            previous_cycle = round(previous_cycle, 3)
+        return {"previous_cycle": previous_cycle}

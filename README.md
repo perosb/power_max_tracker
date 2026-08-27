@@ -67,7 +67,7 @@ Entity names follow the selected cycle type. For example, with an hourly setup y
 - `sensor.average_max_hourly_average_power_<id>`: Average of all stored max values
 - `sensor.average_max_hourly_average_power_cost_<id>`: Cost of the average max (when pricing is configured)
 - `sensor.power_max_source_<id>`: Real-time source tracking (hidden by default)
-- `sensor.hourly_average_power_<id>`: Current cycle average (kW)
+- `sensor.hourly_average_power_<id>`: Current cycle average (kW). Includes a `previous_cycle` attribute with the last completed cycle average (kW).
 
 The same pattern is used for half-hourly and quarterly cycles, with the cycle name included in the entity names.
 
