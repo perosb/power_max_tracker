@@ -515,22 +515,21 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
         self._store = None
 
     def _now(self):
-        """Return the current local time."""
-        return dt_util.as_local(dt_util.utcnow())
+        """Return the current UTC time."""
+        return dt_util.utcnow()
 
     def _get_current_cycle_start(self, now):
-        """Get the start time of the current cycle in local time."""
-        now = dt_util.as_local(now)
+        """Floor the cycle start in local time and return the UTC instant."""
+        local = dt_util.as_local(now)
         if self._coordinator.cycle_type == CYCLE_QUARTERLY:
-            # Quarterly: cycles start at :00, :15, :30, :45
-            minute = (now.minute // 15) * 15
-            return now.replace(minute=minute, second=0, microsecond=0)
-        if self._coordinator.cycle_type == CYCLE_HALF_HOURLY:
-            # Half-hourly: cycles start at :00 and :30
-            minute = (now.minute // 30) * 30
-            return now.replace(minute=minute, second=0, microsecond=0)
-        # Hourly: cycles start at :00
-        return now.replace(minute=0, second=0, microsecond=0)
+            minute = (local.minute // 15) * 15
+            local = local.replace(minute=minute, second=0, microsecond=0)
+        elif self._coordinator.cycle_type == CYCLE_HALF_HOURLY:
+            minute = (local.minute // 30) * 30
+            local = local.replace(minute=minute, second=0, microsecond=0)
+        else:
+            local = local.replace(minute=0, second=0, microsecond=0)
+        return dt_util.as_utc(local)
 
     def _energy_delta(self, power_watts, delta_seconds):
         """Convert a constant power interval to kWh."""
@@ -619,15 +618,12 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
                 )
             # Check if stored cycle_start is in the current cycle
             if self._cycle_start and self._cycle_start != current_cycle_start:
-                # Capture the stored cycle as previous if it has energy
                 cycle_end = self._cycle_start + timedelta(
                     seconds=self._coordinator.seconds_per_cycle
                 )
                 if self._accumulated_energy > 0 or self._last_power:
                     self._snapshot_previous_cycle(cycle_end)
-                # Different cycle, reset accumulated energy
                 self._accumulated_energy = 0.0
-                self._last_power = 0.0
                 self._last_time = now
                 self._cycle_start = current_cycle_start
         else:
@@ -640,10 +636,9 @@ class HourlyAveragePowerSensor(GatedSensorEntity):
 
         async def _async_cycle_start(now):
             """Reset at the start of each cycle."""
-            now = dt_util.as_local(now)
+            now = dt_util.as_utc(now)
             self._snapshot_previous_cycle(now)
             self._accumulated_energy = 0.0
-            self._last_power = 0.0
             self._last_time = now
             self._cycle_start = self._get_current_cycle_start(now)
             await self._save_state()

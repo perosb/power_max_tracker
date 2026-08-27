@@ -6,6 +6,7 @@ They will fail when run in a standalone environment without HA installed.
 
 import pytest
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from unittest.mock import MagicMock, patch, AsyncMock
 
 from custom_components.power_max_tracker.sensor import (
@@ -614,7 +615,7 @@ class TestHourlyAveragePowerSensor:
                 await callback(boundary)
 
                 assert sensor._accumulated_energy == 0.0
-                assert sensor._last_power == 0.0
+                assert sensor._last_power == 4.0
                 assert sensor._last_time == boundary
                 assert sensor._cycle_start == boundary.replace(second=0, microsecond=0)
 
@@ -627,8 +628,12 @@ class TestHourlyAveragePowerSensor:
             datetime(2023, 1, 1, 12, 0, tzinfo=timezone.utc),
             datetime(2023, 1, 1, 12, 30, tzinfo=timezone.utc),
         )
-        # Without proper initialization, should return 0.0
-        assert sensor.native_value == 0.0
+        last_boundary = datetime(2023, 1, 1, 12, 30, tzinfo=timezone.utc)
+        with patch(
+            "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+            return_value=last_boundary,
+        ):
+            assert sensor.native_value == 0.0
 
     def test_extra_state_attributes_previous_cycle(
         self, coordinator, mock_config_entry
@@ -840,6 +845,68 @@ class TestHourlyAveragePowerSensor:
 
             assert sensor._previous_cycle == 1.0
             assert sensor.extra_state_attributes["previous_cycle"] == 1.0
+            assert sensor._last_power == 1000.0
+
+            later = datetime(2023, 1, 1, 13, 30, tzinfo=timezone.utc)
+            with patch(
+                "custom_components.power_max_tracker.sensor.dt_util.utcnow",
+                return_value=later,
+            ):
+                assert sensor.native_value == 1.0
+
+    @pytest.mark.asyncio
+    async def test_repeated_dst_hour_is_a_distinct_cycle(
+        self, coordinator, mock_config_entry, mock_hass
+    ):
+        """Fall-back DST folds must not collapse into one cycle."""
+        sensor = HourlyAveragePowerSensor(coordinator, mock_config_entry)
+        sensor.hass = mock_hass
+        tz = ZoneInfo("Europe/Stockholm")
+        first_2am = datetime(2023, 10, 29, 2, 0, tzinfo=tz, fold=0)
+        second_2am = datetime(2023, 10, 29, 2, 0, tzinfo=tz, fold=1)
+
+        def as_local(dt):
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(tz)
+
+        def as_utc(dt):
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=tz)
+            return dt.astimezone(timezone.utc)
+
+        mock_store = MagicMock()
+        mock_store.async_load = AsyncMock(return_value=None)
+        mock_store.async_save = AsyncMock()
+
+        with patch(
+            "custom_components.power_max_tracker.sensor.Store", return_value=mock_store
+        ), patch(
+            "custom_components.power_max_tracker.sensor.async_track_state_change_event"
+        ), patch(
+            "custom_components.power_max_tracker.sensor.async_track_time_change"
+        ) as mock_time_track, patch(
+            "custom_components.power_max_tracker.sensor.dt_util.as_local",
+            side_effect=as_local,
+        ), patch(
+            "custom_components.power_max_tracker.sensor.dt_util.as_utc",
+            side_effect=as_utc,
+        ), patch.object(
+            sensor, "async_write_ha_state"
+        ):
+            await sensor.async_added_to_hass()
+
+            callback = mock_time_track.call_args.args[1]
+            sensor._accumulated_energy = 0.0
+            sensor._last_power = 1000.0
+            sensor._last_time = as_utc(first_2am)
+            sensor._cycle_start = as_utc(first_2am)
+
+            await callback(second_2am)
+
+            assert sensor._previous_cycle == 1.0
+            assert sensor._cycle_start == as_utc(second_2am)
+            assert sensor._cycle_start != as_utc(first_2am)
 
     @pytest.mark.asyncio
     async def test_load_keeps_current_cycle_with_non_hour_offset_timezone(
